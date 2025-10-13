@@ -1,0 +1,61 @@
+/* Estilos compartidos para ActifRMF */
+
+/* Navbar con fondo azul claro */
+.navbar {
+    background-color: #0dcaf0 !important; /* Bootstrap info color */
+}
+
+.navbar-brand, .navbar-nav .nav-link {
+    color: white !important;
+}
+
+.navbar-nav .nav-link:hover {
+    color: #e0e0e0 !important;
+}
+
+.navbar-nav .nav-link.active {
+    background-color: rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
+}
+
+/* Headers de cards con fondo azul claro */
+.card-header {
+    background-color: #0dcaf0 !important;
+    color: white !important;
+}
+
+/* Botones info */
+.btn-info {
+    background-color: #0dcaf0 !important;
+    border-color: #0dcaf0 !important;
+    color: white !important;
+}
+
+.btn-info:hover {
+    background-color: #0bb5d8 !important;
+    border-color: #0bb5d8 !important;
+}
+
+/* Headers de AG-Grid */
+.ag-theme-alpine {
+    --ag-header-height: 45px;
+    --ag-header-foreground-color: white;
+    --ag-header-background-color: #0dcaf0;
+}
+
+/* Status indicators (for dashboard) */
+.status-indicator {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    display: inline-block;
+    margin-right: 10px;
+}
+
+.status-completado {
+    background-color: #28a745;
+}
+
+.status-pendiente {
+    background-color: #dc3545;
+}

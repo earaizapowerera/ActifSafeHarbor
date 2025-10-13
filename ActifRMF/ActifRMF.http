@@ -1,0 +1,6 @@
+@ActifRMF_HostAddress = http://localhost:5062
+
+GET {{ActifRMF_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

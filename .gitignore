@@ -1,0 +1,17 @@
+## .NET
+bin/
+obj/
+*.user
+*.suo
+*.cache
+*.log
+
+## Visual Studio
+.vs/
+*.csproj.user
+
+## macOS
+.DS_Store
+
+## Rider
+.idea/

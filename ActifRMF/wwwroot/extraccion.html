@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Extracción ETL - ActifRMF</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="/css/shared.css?v=2">
+</head>
+<body>
+    <div id="navbar-placeholder"></div>
+
+    <div class="container mt-4">
+        <div class="row">
+            <div class="col-12">
+                <h1><i class="fas fa-download"></i> Extracción ETL</h1>
+                <p class="lead">Extrae datos de activos NO propios de la base de datos origen</p>
+            </div>
+        </div>
+
+        <div class="row mt-4">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h5><i class="fas fa-play-circle"></i> Ejecutar Extracción</h5>
+                    </div>
+                    <div class="card-body">
+                        <form id="formExtraccion">
+                            <div class="mb-3">
+                                <label for="companiaSelect" class="form-label">Compañía *</label>
+                                <select class="form-select" id="companiaSelect" required>
+                                    <option value="">Cargando compañías...</option>
+                                </select>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="anioCalculo" class="form-label">Año de Cálculo *</label>
+                                <input type="number" class="form-control" id="anioCalculo" min="2020" max="2030" value="2024" required>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="usuario" class="form-label">Usuario</label>
+                                <input type="text" class="form-control" id="usuario" value="Web" required>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="maxRegistros" class="form-label">Límite de Registros (Pruebas)</label>
+                                <input type="number" class="form-control" id="maxRegistros" min="1" placeholder="Dejar vacío para todos">
+                                <small class="form-text text-muted">Opcional: Limita la cantidad de registros para pruebas rápidas (ej: 100)</small>
+                            </div>
+
+                            <button type="submit" class="btn btn-success btn-lg w-100" id="btnEjecutar">
+                                <i class="fas fa-play"></i> Ejecutar ETL
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5><i class="fas fa-info-circle"></i> Información</h5>
+                    </div>
+                    <div class="card-body">
+                        <h6>¿Qué hace el ETL?</h6>
+                        <ul>
+                            <li>Extrae activos NO propios (FLG_PROPIO = 'N')</li>
+                            <li>Obtiene datos de depreciación fiscal</li>
+                            <li>Calcula tasas de depreciación mensuales</li>
+                            <li>Obtiene depreciación acumulada del año anterior</li>
+                            <li>Obtiene índices INPC para activos mexicanos</li>
+                            <li>Guarda datos en tabla Staging_Activo</li>
+                        </ul>
+
+                        <h6 class="mt-3">Notas:</h6>
+                        <ul>
+                            <li>Solo extrae activos activos en el año especificado</li>
+                            <li>Cada extracción genera un GUID único (Lote_Importacion)</li>
+                            <li>Puede ejecutarse múltiples veces sin afectar extracciones anteriores</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mt-4" id="resultadoDiv" style="display: none;">
+            <div class="col-12">
+                <div class="card" id="resultadoCard">
+                    <div class="card-header">
+                        <h5><i class="fas fa-check-circle"></i> Resultado de la Extracción</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="resultadoContent"></div>
+
+                        <!-- Query ejecutado con sustituciones -->
+                        <div class="mt-4" id="queryExecutedSection" style="display: none;">
+                            <h6><i class="fas fa-code"></i> Query Ejecutado:</h6>
+                            <div class="alert alert-secondary">
+                                <pre id="queryExecutedContent" style="max-height: 400px; overflow-y: auto; font-size: 0.85em;"></pre>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mt-4">
+            <div class="col-12">
+                <h3><i class="fas fa-history"></i> Historial de Extracciones</h3>
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Fecha</th>
+                                <th>Compañía</th>
+                                <th>Año</th>
+                                <th>Lote</th>
+                                <th>Registros</th>
+                                <th>Duración</th>
+                                <th>Estado</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbodyHistorial">
+                            <tr>
+                                <td colspan="7" class="text-center">Cargando historial...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/js/shared.js?v=2"></script>
+    <script src="/js/extraccion.js?v=2"></script>
+</body>
+</html>
