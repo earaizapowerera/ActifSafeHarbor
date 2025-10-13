@@ -1,6 +1,7 @@
 -- =============================================
--- Insertar 5 Casos de Prueba del Excel
+-- Insertar 6 Casos de Prueba del Excel
 -- Para validar que SP v4 calcule correctamente
+-- INCLUYE: CASO 6 - Activo NO propio (FLG_PROPIO=0)
 -- =============================================
 
 DECLARE @Lote_Prueba UNIQUEIDENTIFIER = NEWID();
@@ -8,7 +9,7 @@ DECLARE @ID_Compania INT = 188;
 DECLARE @Año_Calculo INT = 2024;
 
 PRINT 'Lote de prueba: ' + CAST(@Lote_Prueba AS VARCHAR(50));
-PRINT 'Insertando 5 casos del Excel...';
+PRINT 'Insertando 6 casos del Excel...';
 
 -- Limpiar casos anteriores de prueba
 DELETE FROM Staging_Activo
@@ -140,8 +141,34 @@ VALUES (
     GETDATE()
 );
 
+-- CASO 6: Activo NO Propio (FLG_PROPIO=0)
+-- Resultado esperado: 10% MOI directo = $182,478 MXN (100,000 USD * 0.10 * 18.2478 TC)
+-- Los activos NO propios NO deprecian y siempre usan Safe Harbor 10% MOI
+INSERT INTO Staging_Activo (
+    ID_Compania, ID_NUM_ACTIVO, ID_ACTIVO, DESCRIPCION,
+    ID_PAIS, FLG_PROPIO, COSTO_REVALUADO,
+    Tasa_Anual, Tasa_Mensual,
+    FECHA_COMPRA, FECHA_BAJA,
+    Dep_Acum_Inicio_Año,
+    Año_Calculo, Lote_Importacion, Fecha_Importacion
+)
+VALUES (
+    @ID_Compania, 9999006, 'EXCEL-CASO6', 'Caso 6: Activo NO Propio (Art 182 Safe Harbor)',
+    20, -- USA
+    0,  -- NO PROPIO
+    100000.00,  -- MOI en USD
+    0.08,       -- Tasa anual (aunque NO deprecia)
+    0.006666667,
+    '2019-01-20', -- Fecha adquisición (no afecta el cálculo)
+    NULL,
+    0.00,        -- NO deprecia, siempre 0
+    @Año_Calculo,
+    @Lote_Prueba,
+    GETDATE()
+);
+
 PRINT '';
-PRINT '✓ 5 casos insertados exitosamente';
+PRINT '✓ 6 casos insertados exitosamente';
 PRINT 'Lote: ' + CAST(@Lote_Prueba AS VARCHAR(50));
 PRINT '';
 
