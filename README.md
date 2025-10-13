@@ -317,9 +317,16 @@ Server=dbdev.powerera.com;Database=actif_web_CIMA_Dev;User Id=earaiza;Password=V
 ### Actif_RMF (Destino)
 
 **Servidor:** dbdev.powerera.com
-**Base de Datos:** Actif_RMF (por crear)
-**Usuario:** earaiza
-**Password:** VgfN-n4ju?H1Z4#JFRE
+**Base de Datos:** Actif_RMF
+**Usuario:** usuarioPrueba
+**Password:** Password123!
+
+**Connection String:**
+```
+Server=dbdev.powerera.com;Database=Actif_RMF;User Id=usuarioPrueba;Password=Password123!;TrustServerCertificate=True;
+```
+
+**Nota:** La base de datos Actif_RMF ya está creada en el servidor con las tablas necesarias para el sistema.
 
 ## Próximos Pasos
 

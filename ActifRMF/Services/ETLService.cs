@@ -89,7 +89,7 @@ public class ETLService
                         af.ID_SUBTIPO_ACTIVO,
                         ta.DESCRIPCION AS Nombre_TipoActivo,
                         af.DESCRIPCION,
-                        af.COSTO_ADQUISICION,
+                        af.COSTO_REVALUADO,
                         af.Costo_Fiscal,
                         af.ID_MONEDA,
                         m.DESCRIPCION AS Nombre_Moneda,
@@ -194,6 +194,12 @@ public class ETLService
                 // Guardar el query ejecutado para mostrarlo al usuario
                 result.QueryEjecutado = queryFinal;
 
+                // 🔍 DEBUG: Mostrar query con sustituciones ANTES de ejecutar
+                Console.WriteLine("\n🔍 DEBUG - Query a ejecutar:");
+                Console.WriteLine("================================================================================");
+                Console.WriteLine(queryFinal);
+                Console.WriteLine("================================================================================\n");
+
                 Console.WriteLine("Contando registros a extraer...");
 
                 // Primero obtener el count total de registros
@@ -228,6 +234,15 @@ public class ETLService
 
                 using var readerOrigen = await cmdOrigen.ExecuteReaderAsync();
 
+                // 🔍 DEBUG: Mostrar columnas del DataReader
+                Console.WriteLine("\n🔍 DEBUG - Columnas en el DataReader:");
+                Console.WriteLine("================================================================================");
+                for (int i = 0; i < readerOrigen.FieldCount; i++)
+                {
+                    Console.WriteLine($"  [{i}] {readerOrigen.GetName(i)}");
+                }
+                Console.WriteLine("================================================================================\n");
+
                 // Preparar INSERT en staging
                 using var connRMF = new SqlConnection(_connectionStringRMF);
                 await connRMF.OpenAsync();
@@ -237,13 +252,13 @@ public class ETLService
                     var sqlInsert = @"
                         INSERT INTO Actif_RMF.dbo.Staging_Activo
                             (ID_Compania, ID_NUM_ACTIVO, ID_ACTIVO, ID_TIPO_ACTIVO, ID_SUBTIPO_ACTIVO,
-                             Nombre_TipoActivo, DESCRIPCION, COSTO_ADQUISICION, COSTO_REVALUADO, ID_MONEDA, Nombre_Moneda,
+                             Nombre_TipoActivo, DESCRIPCION, COSTO_REVALUADO, ID_MONEDA, Nombre_Moneda,
                              ID_PAIS, Nombre_Pais, FECHA_COMPRA, FECHA_BAJA, FECHA_INICIO_DEP, STATUS,
                              FLG_PROPIO, Tasa_Anual, Tasa_Mensual, Dep_Acum_Inicio_Año,
                              Año_Calculo, Lote_Importacion)
                         VALUES
                             (@IdCompania, @IdNumActivo, @IdActivo, @IdTipoActivo, @IdSubtipoActivo,
-                             @NombreTipoActivo, @Descripcion, @CostoAdquisicion, @CostoRevaluado, @IdMoneda, @NombreMoneda,
+                             @NombreTipoActivo, @Descripcion, @CostoRevaluado, @IdMoneda, @NombreMoneda,
                              @IdPais, @NombrePais, @FechaCompra, @FechaBaja, @FechaInicioDep, @Status,
                              @FlgPropio, @TasaAnual, @TasaMensual, @DepAcumInicioAño,
                              @AñoCalculo, @LoteImportacion)";
@@ -256,15 +271,16 @@ public class ETLService
                     cmdInsert.Parameters.AddWithValue("@IdSubtipoActivo", readerOrigen["ID_SUBTIPO_ACTIVO"]);
                     cmdInsert.Parameters.AddWithValue("@NombreTipoActivo", readerOrigen["Nombre_TipoActivo"] ?? DBNull.Value);
                     cmdInsert.Parameters.AddWithValue("@Descripcion", readerOrigen["DESCRIPCION"] ?? DBNull.Value);
-                    cmdInsert.Parameters.AddWithValue("@CostoAdquisicion", readerOrigen["COSTO_ADQUISICION"]);
-                    cmdInsert.Parameters.AddWithValue("@CostoRevaluado", readerOrigen["Costo_Fiscal"] ?? DBNull.Value);
+
+                    // Read COSTO_REVALUADO directly (no alias)
+                    cmdInsert.Parameters.AddWithValue("@CostoRevaluado", readerOrigen["COSTO_REVALUADO"] ?? DBNull.Value);
                     cmdInsert.Parameters.AddWithValue("@IdMoneda", readerOrigen["ID_MONEDA"] ?? DBNull.Value);
                     cmdInsert.Parameters.AddWithValue("@NombreMoneda", readerOrigen["Nombre_Moneda"] ?? DBNull.Value);
                     cmdInsert.Parameters.AddWithValue("@IdPais", readerOrigen["ID_PAIS"]);
                     cmdInsert.Parameters.AddWithValue("@NombrePais", readerOrigen["Nombre_Pais"] ?? DBNull.Value);
                     cmdInsert.Parameters.AddWithValue("@FechaCompra", readerOrigen["FECHA_COMPRA"] ?? DBNull.Value);
                     cmdInsert.Parameters.AddWithValue("@FechaBaja", readerOrigen["FECHA_BAJA"] ?? DBNull.Value);
-                    cmdInsert.Parameters.AddWithValue("@FechaInicioDep", readerOrigen["FECHA_INIC_DEPREC"] ?? DBNull.Value);
+                    cmdInsert.Parameters.AddWithValue("@FechaInicioDep", readerOrigen["FECHA_INICIO_DEP"] ?? DBNull.Value);
                     cmdInsert.Parameters.AddWithValue("@Status", readerOrigen["STATUS"] ?? DBNull.Value);
                     cmdInsert.Parameters.AddWithValue("@FlgPropio", readerOrigen["FLG_PROPIO"] ?? DBNull.Value);
                     cmdInsert.Parameters.AddWithValue("@TasaAnual", readerOrigen["Tasa_Anual"] ?? DBNull.Value);
