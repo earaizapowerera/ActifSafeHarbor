@@ -115,6 +115,9 @@ app.MapPost("/api/etl/ejecutar", async (ETLRequest request) =>
         // Start ETL in background and return loteImportacion immediately
         var etlService = new ETLService(connectionStringRMF);
 
+        // MODO PRUEBA: Limitar a 500 registros si no se especifica
+        var maxRegistros = request.MaxRegistros ?? 500;
+
         // Run ETL in background task (fire and forget with proper error handling)
         _ = Task.Run(async () =>
         {
@@ -124,7 +127,7 @@ app.MapPost("/api/etl/ejecutar", async (ETLRequest request) =>
                     request.IdCompania,
                     request.AñoCalculo,
                     request.Usuario ?? "Web",
-                    request.MaxRegistros,
+                    maxRegistros,
                     loteImportacion);
             }
             catch (Exception ex)
@@ -152,25 +155,61 @@ app.MapPost("/api/etl/ejecutar", async (ETLRequest request) =>
 // =============================================
 // ENDPOINT: Obtener Progreso ETL
 // =============================================
-app.MapGet("/api/etl/progreso/{loteImportacion:guid}", (Guid loteImportacion) =>
+app.MapGet("/api/etl/progreso/{loteImportacion:guid}", async (Guid loteImportacion) =>
 {
     try
     {
-        var progreso = ETLService.ObtenerProgreso(loteImportacion);
+        Console.WriteLine($"[DEBUG] Buscando progreso para lote: {loteImportacion}");
 
-        if (progreso == null)
+        // Consultar progreso desde la base de datos (para ETL .NET standalone)
+        using var connection = new SqlConnection(connectionStringRMF);
+        await connection.OpenAsync();
+
+        var query = @"
+            SELECT TOP 1
+                Lote_Importacion,
+                Registros_Procesados,
+                Registros_Exitosos,
+                Estado,
+                Fecha_Inicio,
+                Fecha_Fin
+            FROM dbo.Log_Ejecucion_ETL
+            WHERE Lote_Importacion = @Lote
+              AND Tipo_Proceso = 'ETL_NET'
+            ORDER BY Fecha_Inicio DESC";
+
+        using var command = new SqlCommand(query, connection);
+        command.Parameters.AddWithValue("@Lote", loteImportacion);
+
+        using var reader = await command.ExecuteReaderAsync();
+
+        if (!await reader.ReadAsync())
         {
+            Console.WriteLine($"[DEBUG] No se encontró registro en BD para lote: {loteImportacion}");
             return Results.NotFound(new { message = "No se encontró progreso para este lote" });
         }
 
+        Console.WriteLine($"[DEBUG] Registro encontrado, Estado: {reader.GetString(3)}");
+
+        var registrosProcesados = reader.IsDBNull(1) ? 0 : reader.GetInt32(1);
+        var registrosExitosos = reader.IsDBNull(2) ? 0 : reader.GetInt32(2);
+        var estado = reader.GetString(3);
+        var fechaInicio = reader.GetDateTime(4);
+        DateTime? fechaFin = reader.IsDBNull(5) ? null : reader.GetDateTime(5);
+
+        Console.WriteLine($"[DEBUG] Registros_Procesados: {registrosProcesados}, Registros_Exitosos: {registrosExitosos}");
+
+        // CORREGIDO:
+        // - Registros_Procesados: progreso actual (se actualiza cada 250 registros durante el proceso)
+        // - Registros_Exitosos: total de registros a procesar (se establece al inicio después de extraer)
         return Results.Ok(new
         {
-            loteImportacion = progreso.LoteImportacion,
-            registrosInsertados = progreso.RegistrosInsertados,
-            totalRegistros = progreso.TotalRegistros,
-            estado = progreso.Estado,
-            fechaInicio = progreso.FechaInicio,
-            fechaFin = progreso.FechaFin
+            loteImportacion = loteImportacion,
+            registrosInsertados = registrosProcesados,  // Progreso actual
+            totalRegistros = registrosExitosos,  // Total establecido al inicio
+            estado = estado,
+            fechaInicio = fechaInicio,
+            fechaFin = fechaFin
         });
     }
     catch (Exception ex)
@@ -239,7 +278,7 @@ app.MapGet("/api/etl/historial", async () =>
                 l.Estado
             FROM dbo.Log_Ejecucion_ETL l
             INNER JOIN dbo.ConfiguracionCompania c ON l.ID_Compania = c.ID_Compania
-            WHERE l.Tipo_Proceso = 'ETL'
+            WHERE l.Tipo_Proceso IN ('ETL', 'ETL_NET')
             ORDER BY l.Fecha_Inicio DESC";
 
         using var command = new SqlCommand(query, connection);
@@ -425,7 +464,7 @@ app.MapGet("/api/calculo/lotes-disponibles/{idCompania}/{año}", async (int idCo
             FROM dbo.Log_Ejecucion_ETL l
             WHERE l.ID_Compania = @IdCompania
               AND l.Año_Calculo = @Año
-              AND l.Tipo_Proceso = 'ETL'
+              AND l.Tipo_Proceso IN ('ETL', 'ETL_NET')
               AND l.Estado = 'Completado'
             ORDER BY l.Fecha_Inicio DESC";
 
@@ -537,7 +576,7 @@ app.MapGet("/analizar-excel", () =>
 // ENDPOINTS CRUD: Compañías
 // =============================================
 
-// GET: Listar todas las compañías
+// GET: Listar todas las compañías (filtrado: solo IDs específicas)
 app.MapGet("/api/companias", async () =>
 {
     try
@@ -545,7 +584,10 @@ app.MapGet("/api/companias", async () =>
         using var connection = new SqlConnection(connectionStringRMF);
         await connection.OpenAsync();
 
-        var query = "SELECT * FROM dbo.ConfiguracionCompania ORDER BY Nombre_Compania";
+        // Filtrar solo compañías permitidas: 122, 123, 188, 1000, 1001, 1500, 12
+        var query = @"SELECT * FROM dbo.ConfiguracionCompania
+                      WHERE ID_Compania IN (12, 122, 123, 188, 1000, 1001, 1500)
+                      ORDER BY ID_Compania";
         using var command = new SqlCommand(query, connection);
         using var reader = await command.ExecuteReaderAsync();
 
@@ -938,6 +980,7 @@ app.MapGet("/api/reporte/{idCompania}/{añoCalculo}", async (int idCompania, int
                 c.MOI,
                 c.INPC_Adqu,
                 c.INPC_Mitad_Ejercicio,
+                c.INPC_Mitad_Periodo,
                 c.Meses_Uso_Inicio_Ejercicio,
                 c.Meses_Uso_Hasta_Mitad_Periodo,
                 c.Meses_Uso_En_Ejercicio,
@@ -949,6 +992,11 @@ app.MapGet("/api/reporte/{idCompania}/{añoCalculo}", async (int idCompania, int
                 c.Aplica_10_Pct,
                 c.Tipo_Cambio_30_Junio,
                 c.Valor_Reportable_MXN,
+                c.Tasa_Anual,
+                c.Dep_Anual,
+                c.Valor_Reportable_USD,
+                s.FECHA_COMPRA AS Fecha_Adquisicion,
+                s.FECHA_BAJA AS Fecha_Baja,
                 c.Observaciones,
                 c.Fecha_Calculo,
                 c.Lote_Calculo
@@ -980,20 +1028,26 @@ app.MapGet("/api/reporte/{idCompania}/{añoCalculo}", async (int idCompania, int
                 moi = reader.GetDecimal(8),
                 inpcAdquisicion = reader.IsDBNull(9) ? (decimal?)null : reader.GetDecimal(9),
                 inpcMitadEjercicio = reader.IsDBNull(10) ? (decimal?)null : reader.GetDecimal(10),
-                mesesInicio = reader.GetInt32(11),
-                mesesMitad = reader.GetInt32(12),
-                mesesEjercicio = reader.GetInt32(13),
-                saldoInicio = reader.GetDecimal(14),
-                depEjercicio = reader.GetDecimal(15),
-                montoPendiente = reader.IsDBNull(16) ? (decimal?)null : reader.GetDecimal(16),
-                proporcion = reader.IsDBNull(17) ? (decimal?)null : reader.GetDecimal(17),
-                prueba10Pct = reader.IsDBNull(18) ? (decimal?)null : reader.GetDecimal(18),
-                aplica10Pct = reader.IsDBNull(19) ? (bool?)null : reader.GetBoolean(19),
-                tipoCambio = reader.IsDBNull(20) ? (decimal?)null : reader.GetDecimal(20),
-                valorReportable = reader.GetDecimal(21),
-                observaciones = reader.IsDBNull(22) ? null : reader.GetString(22),
-                fechaCalculo = reader.GetDateTime(23),
-                loteCalculo = reader.GetGuid(24)
+                inpcMitadPeriodo = reader.IsDBNull(11) ? (decimal?)null : reader.GetDecimal(11),
+                mesesInicio = reader.GetInt32(12),
+                mesesMitad = reader.GetInt32(13),
+                mesesEjercicio = reader.GetInt32(14),
+                saldoInicio = reader.GetDecimal(15),
+                depEjercicio = reader.GetDecimal(16),
+                montoPendiente = reader.IsDBNull(17) ? (decimal?)null : reader.GetDecimal(17),
+                proporcion = reader.IsDBNull(18) ? (decimal?)null : reader.GetDecimal(18),
+                prueba10Pct = reader.IsDBNull(19) ? (decimal?)null : reader.GetDecimal(19),
+                aplica10Pct = reader.IsDBNull(20) ? (bool?)null : reader.GetBoolean(20),
+                tipoCambio = reader.IsDBNull(21) ? (decimal?)null : reader.GetDecimal(21),
+                valorReportable = reader.GetDecimal(22),
+                tasaAnual = reader.IsDBNull(23) ? (decimal?)null : reader.GetDecimal(23),
+                depAnual = reader.IsDBNull(24) ? (decimal?)null : reader.GetDecimal(24),
+                valorReportableUSD = reader.IsDBNull(25) ? (decimal?)null : reader.GetDecimal(25),
+                fechaAdquisicion = reader.IsDBNull(26) ? (DateTime?)null : reader.GetDateTime(26),
+                fechaBaja = reader.IsDBNull(27) ? (DateTime?)null : reader.GetDateTime(27),
+                observaciones = reader.IsDBNull(28) ? null : reader.GetString(28),
+                fechaCalculo = reader.GetDateTime(29),
+                loteCalculo = reader.GetGuid(30)
             });
         }
 
