@@ -325,18 +325,20 @@ public class ETLActivos
             LEFT JOIN moneda m ON a.ID_MONEDA = m.ID_MONEDA
 
             -- INPC de adquisición (solo para mexicanos, ID_PAIS = 1)
-            -- Nota: puede generar duplicados si hay múltiples INPC para mismo año/mes, DISTINCT los maneja
+            -- Filtrado por grupo simulación 8
             LEFT JOIN INPC2 inpc_adq
                 ON YEAR(a.FECHA_COMPRA) = inpc_adq.Anio
                 AND MONTH(a.FECHA_COMPRA) = inpc_adq.Mes
                 AND inpc_adq.Id_Pais = 1
+                AND inpc_adq.Id_Grupo_Simulacion = 8
 
             -- INPC de mitad del ejercicio (junio del año actual)
-            -- Nota: puede generar duplicados si hay múltiples INPC para junio 2024, DISTINCT los maneja
+            -- Filtrado por grupo simulación 8
             LEFT JOIN INPC2 inpc_mitad
                 ON inpc_mitad.Anio = @Año_Calculo
                 AND inpc_mitad.Mes = 6
                 AND inpc_mitad.Id_Pais = 1
+                AND inpc_mitad.Id_Grupo_Simulacion = 8
 
             WHERE a.ID_COMPANIA = @ID_Compania
               AND a.STATUS = 'A'  -- Solo activos activos
