@@ -48,7 +48,8 @@ async function cargarEstadisticas() {
 
 async function cargarDatosRecientes() {
     try {
-        const response = await fetch('/api/inpc/recientes');
+        // Filtrar solo grupo simulación 8 (los que se usan)
+        const response = await fetch('/api/inpc/recientes?idGrupoSimulacion=8');
         if (!response.ok) throw new Error('Error al cargar datos recientes');
 
         const datos = await response.json();

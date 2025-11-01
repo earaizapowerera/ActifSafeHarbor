@@ -285,8 +285,15 @@ public class ETLActivos
                 a.FLG_NOCAPITALIZABLE_2 AS ManejaFiscal,
                 a.FLG_NOCAPITALIZABLE_3 AS ManejaUSGAAP,
 
-                -- Tasa de depreciación FISCAL
-                pd.PORC_SEGUNDO_ANO AS Tasa_Anual,
+                -- Tasa de depreciación FISCAL - Subquery para evitar duplicados
+                ISNULL((
+                    SELECT TOP 1 pd.PORC_SEGUNDO_ANO
+                    FROM porcentaje_depreciacion pd
+                    WHERE pd.ID_TIPO_ACTIVO = a.ID_TIPO_ACTIVO
+                      AND pd.ID_SUBTIPO_ACTIVO = a.ID_SUBTIPO_ACTIVO
+                      AND pd.ID_TIPO_DEP = 2
+                    ORDER BY pd.PORC_SEGUNDO_ANO DESC
+                ), 0) AS Tasa_Anual,
 
                 -- Depreciación acumulada FISCAL del año ANTERIOR (Diciembre) - Subquery para evitar duplicados
                 ISNULL((
@@ -317,19 +324,15 @@ public class ETLActivos
             -- Join con moneda
             LEFT JOIN moneda m ON a.ID_MONEDA = m.ID_MONEDA
 
-            -- Join con porcentaje_depreciacion FISCAL (ID_TIPO_DEP = 2)
-            LEFT JOIN porcentaje_depreciacion pd
-                ON a.ID_TIPO_ACTIVO = pd.ID_TIPO_ACTIVO
-                AND a.ID_SUBTIPO_ACTIVO = pd.ID_SUBTIPO_ACTIVO
-                AND pd.ID_TIPO_DEP = 2
-
             -- INPC de adquisición (solo para mexicanos, ID_PAIS = 1)
+            -- Nota: puede generar duplicados si hay múltiples INPC para mismo año/mes, DISTINCT los maneja
             LEFT JOIN INPC2 inpc_adq
                 ON YEAR(a.FECHA_COMPRA) = inpc_adq.Anio
                 AND MONTH(a.FECHA_COMPRA) = inpc_adq.Mes
                 AND inpc_adq.Id_Pais = 1
 
             -- INPC de mitad del ejercicio (junio del año actual)
+            -- Nota: puede generar duplicados si hay múltiples INPC para junio 2024, DISTINCT los maneja
             LEFT JOIN INPC2 inpc_mitad
                 ON inpc_mitad.Anio = @Año_Calculo
                 AND inpc_mitad.Mes = 6

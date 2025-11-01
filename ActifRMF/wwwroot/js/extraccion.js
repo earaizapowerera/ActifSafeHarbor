@@ -40,6 +40,7 @@ async function cargarCompanias() {
 }
 
 let progressInterval = null;
+let pollCount = 0;
 
 async function ejecutarETL(event) {
     event.preventDefault();
@@ -291,31 +292,48 @@ function ocultarBarraProgreso() {
 }
 
 function iniciarMonitoreoProgreso(loteImportacion) {
-    // Poll every 10 seconds
+    pollCount = 0;
+    // Poll every 5 seconds (reducido de 10)
     progressInterval = setInterval(async () => {
+        pollCount++;
         try {
+            console.log(`[Poll #${pollCount}] Consultando progreso para lote: ${loteImportacion}`);
             const response = await fetch(`/api/etl/progreso/${loteImportacion}`);
+
+            console.log(`[Poll #${pollCount}] Response status: ${response.status}`);
 
             if (response.ok) {
                 const progreso = await response.json();
+                console.log(`[Poll #${pollCount}] Progreso:`, progreso);
                 actualizarBarraProgreso(progreso);
 
                 // Stop polling if completed or error
                 if (progreso.estado === 'Completado' || progreso.estado.startsWith('Error')) {
+                    console.log(`[Poll #${pollCount}] ETL finalizado, deteniendo polling`);
                     clearInterval(progressInterval);
                     progressInterval = null;
                 }
+            } else {
+                console.error(`[Poll #${pollCount}] Error HTTP: ${response.status}`);
             }
         } catch (error) {
-            console.error('Error obteniendo progreso:', error);
+            console.error(`[Poll #${pollCount}] Error obteniendo progreso:`, error);
         }
-    }, 10000); // 10 seconds
+    }, 5000); // 5 seconds
 }
 
 function actualizarBarraProgreso(progreso) {
     const progressBar = document.getElementById('progressBar');
     const progressText = document.getElementById('progressText');
     const progressDetails = document.getElementById('progressDetails');
+
+    // Si no tenemos el total aún, ocultar la barra y mostrar mensaje de espera
+    if (progreso.totalRegistros === 0 && progreso.estado === 'En Proceso') {
+        progressBar.style.width = '0%';
+        progressText.textContent = 'Extrayendo datos...';
+        progressDetails.textContent = `Estado: ${progreso.estado} | Consultas: ${pollCount}`;
+        return;
+    }
 
     if (progreso.estado === 'Completado') {
         progressBar.style.width = '100%';
@@ -336,22 +354,33 @@ function actualizarBarraProgreso(progreso) {
         progressText.textContent = `${progreso.registrosInsertados} de ${progreso.totalRegistros} registros (${porcentaje}%)`;
     }
 
-    progressDetails.textContent = `Estado: ${progreso.estado}`;
+    progressDetails.textContent = `Estado: ${progreso.estado} | Consultas: ${pollCount}`;
 }
 
 async function esperarCompletado(loteImportacion) {
     return new Promise((resolve, reject) => {
+        let checkCount = 0;
         const checkInterval = setInterval(async () => {
+            checkCount++;
             try {
+                console.log(`[esperarCompletado #${checkCount}] Verificando completado para lote: ${loteImportacion}`);
                 const response = await fetch(`/api/etl/progreso/${loteImportacion}`);
                 if (response.ok) {
                     const progreso = await response.json();
+                    console.log(`[esperarCompletado #${checkCount}] Estado recibido:`, progreso.estado, 'Objeto completo:', progreso);
+
                     if (progreso.estado === 'Completado' || progreso.estado.startsWith('Error')) {
+                        console.log(`[esperarCompletado #${checkCount}] ¡ETL COMPLETADO! Resolviendo promesa...`);
                         clearInterval(checkInterval);
                         resolve(progreso);
+                    } else {
+                        console.log(`[esperarCompletado #${checkCount}] Aún en proceso, esperando...`);
                     }
+                } else {
+                    console.error(`[esperarCompletado #${checkCount}] Error HTTP: ${response.status}`);
                 }
             } catch (error) {
+                console.error(`[esperarCompletado #${checkCount}] Error:`, error);
                 clearInterval(checkInterval);
                 reject(error);
             }

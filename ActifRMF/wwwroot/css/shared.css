@@ -43,6 +43,13 @@
     --ag-header-background-color: #0dcaf0;
 }
 
+/* Override table-dark to use blue instead of black */
+.table-dark thead th {
+    background-color: #0dcaf0 !important;
+    border-color: #0dcaf0 !important;
+    color: white !important;
+}
+
 /* Status indicators (for dashboard) */
 .status-indicator {
     width: 20px;

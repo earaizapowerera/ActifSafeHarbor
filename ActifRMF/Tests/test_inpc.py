@@ -56,6 +56,37 @@ def test_load_inpc(driver, year=2024):
     except Exception as e:
         log(f"❌ Error: {e}"); return False
 
+def test_recent_inpc_display(driver):
+    log("\n=== TEST: Datos Recientes Filtrados por Grupo 8 ===")
+    try:
+        time.sleep(2)
+        # Verificar que la tabla de datos recientes existe
+        tbody = wait_elem(driver, By.ID, "tbodyINPC")
+        if not tbody:
+            log("❌ No se encontró tabla de datos recientes")
+            return False
+
+        # Verificar que hay filas en la tabla
+        rows = tbody.find_elements(By.TAG_NAME, "tr")
+        if len(rows) == 0:
+            log("⚠️ No hay datos en la tabla (puede ser normal si no hay INPC cargado)")
+            return True
+
+        # Verificar que aparecen datos (al menos una fila con 4 columnas)
+        first_row = rows[0]
+        cells = first_row.find_elements(By.TAG_NAME, "td")
+        if len(cells) >= 4:
+            log(f"✅ Tabla muestra {len(rows)} registros de INPC")
+            log(f"   Ejemplo: Año {cells[0].text}, Mes {cells[1].text}, Índice {cells[2].text}")
+            return True
+        else:
+            log("❌ Formato de tabla incorrecto")
+            return False
+
+    except Exception as e:
+        log(f"❌ Error: {e}")
+        return False
+
 def main():
     log("🚀 Iniciando pruebas de INPC")
     options = webdriver.ChromeOptions()
@@ -69,7 +100,7 @@ def main():
         driver.implicitly_wait(10)
 
         tests = [test_page_load, test_year_select, test_simulation_group_select,
-                test_load_button, test_load_inpc]
+                test_load_button, test_load_inpc, test_recent_inpc_display]
         passed = sum([1 for t in tests if t(driver)])
 
         log("\n" + "="*80)
