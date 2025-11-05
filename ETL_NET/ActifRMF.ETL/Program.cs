@@ -493,6 +493,15 @@ public class ETLActivos
               )
               AND (a.FECHA_COMPRA IS NULL OR a.FECHA_COMPRA <= CAST('{añoCalculo}-12-31' AS DATE))
               AND (a.FECHA_BAJA IS NULL OR a.FECHA_BAJA >= CAST('{añoCalculo}-01-01' AS DATE))
+              -- EXCLUIR activos con tasa = 0 (terrenos, no deprecian, NO aplican Safe Harbor)
+              AND EXISTS (
+                SELECT 1
+                FROM porcentaje_depreciacion pd2
+                WHERE pd2.ID_TIPO_ACTIVO = a.ID_TIPO_ACTIVO
+                  AND pd2.ID_SUBTIPO_ACTIVO = a.ID_SUBTIPO_ACTIVO
+                  AND pd2.ID_TIPO_DEP = 2
+                  AND pd2.PORC_SEGUNDO_ANO > 0
+              )
             ORDER BY a.ID_COMPANIA, a.ID_NUM_ACTIVO", conn);
 
         // Pasar parámetro de compañía para filtrar solo activos de esa compañía

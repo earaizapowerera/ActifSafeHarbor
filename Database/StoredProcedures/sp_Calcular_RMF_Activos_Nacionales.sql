@@ -1,12 +1,11 @@
 -- =============================================
--- Stored Procedure para Cálculo RMF - Activos NACIONALES
--- Versión: 1.0
--- DESCRIPCIÓN:
--- - Calcula RMF para activos mexicanos (ID_PAIS = 1)
--- - Usa CostoMXN directamente (sin conversión de tipo de cambio)
--- - Implementa cálculo automático de depreciación fiscal tipo 2
--- - Aplica regla del mayor entre Proporción y 10% MOI
+-- SP Calcular RMF Activos NACIONALES (FIXED)
+-- Solo parámetros: @ID_Compania, @Año_Calculo
+-- Elimina cálculos previos antes de calcular
 -- =============================================
+
+USE Actif_RMF;
+GO
 
 IF OBJECT_ID('dbo.sp_Calcular_RMF_Activos_Nacionales', 'P') IS NOT NULL
     DROP PROCEDURE dbo.sp_Calcular_RMF_Activos_Nacionales;
@@ -14,8 +13,7 @@ GO
 
 CREATE PROCEDURE dbo.sp_Calcular_RMF_Activos_Nacionales
     @ID_Compania INT,
-    @Año_Calculo INT,
-    @Lote_Importacion UNIQUEIDENTIFIER
+    @Año_Calculo INT
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -23,32 +21,34 @@ BEGIN
     DECLARE @Año_Anterior INT = @Año_Calculo - 1;
     DECLARE @Fecha_30_Junio DATE = CAST(CAST(@Año_Calculo AS VARCHAR(4)) + '-06-30' AS DATE);
     DECLARE @RegistrosProcesados INT = 0;
-    DECLARE @Lote_Calculo UNIQUEIDENTIFIER = NEWID();
+    DECLARE @Lote_Calculo UNIQUEIDENTIFIER = NEWID();  -- Generar lote automáticamente
 
     PRINT '========================================';
-    PRINT 'Iniciando cálculo RMF Activos Nacionales v1.0';
+    PRINT 'Cálculo RMF Activos Nacionales';
     PRINT 'Compañía: ' + CAST(@ID_Compania AS VARCHAR(10));
     PRINT 'Año: ' + CAST(@Año_Calculo AS VARCHAR(10));
-    PRINT 'Lote Importación: ' + CAST(@Lote_Importacion AS VARCHAR(50));
-    PRINT 'Lote Cálculo: ' + CAST(@Lote_Calculo AS VARCHAR(50));
     PRINT '========================================';
 
-    -- Crear tabla temporal
+    -- 1. Eliminar cálculos previos de esta compañía/año
+    DELETE FROM Calculo_RMF
+    WHERE ID_Compania = @ID_Compania
+      AND Año_Calculo = @Año_Calculo
+      AND Tipo_Activo = 'Nacional';
+
+    PRINT 'Cálculos previos eliminados: ' + CAST(@@ROWCOUNT AS VARCHAR(10));
+
+    -- 2. Crear tabla temporal
     CREATE TABLE #ActivosCalculo (
         ID_Staging BIGINT,
         ID_NUM_ACTIVO INT,
-        ID_ACTIVO NVARCHAR(50),
-        DESCRIPCION NVARCHAR(500),
         MOI DECIMAL(18,4),
         Tasa_Anual DECIMAL(10,6),
         Tasa_Mensual DECIMAL(18,6),
         Dep_Anual DECIMAL(18,4),
         FECHA_COMPRA DATE,
         FECHA_BAJA DATE,
-        FECHA_INIC_DEPREC_3 DATE,
         ID_PAIS INT,
         Dep_Acum_Inicio DECIMAL(18,4),
-        Dep_Acum_Calculada DECIMAL(18,4),
         INPC_Adqu DECIMAL(18,6),
         INPC_Mitad_Ejercicio DECIMAL(18,6),
         INPC_Mitad_Periodo DECIMAL(18,6),
@@ -58,47 +58,46 @@ BEGIN
         Saldo_Inicio_Año DECIMAL(18,4),
         Dep_Ejercicio DECIMAL(18,4),
         Monto_Pendiente DECIMAL(18,4),
+        -- Campos de actualización por INPC
+        Factor_Actualizacion_Saldo DECIMAL(18,10),
+        Saldo_Actualizado DECIMAL(18,4),
+        Factor_Actualizacion_Dep DECIMAL(18,10),
+        Dep_Actualizada DECIMAL(18,4),
+        Valor_Promedio DECIMAL(18,4),
         Proporcion DECIMAL(18,4),
         Prueba_10Pct DECIMAL(18,4),
         Valor_MXN DECIMAL(18,4),
         Aplica_Regla_10Pct BIT,
         Ruta_Calculo NVARCHAR(20),
-        Descripcion_Ruta NVARCHAR(200),
-        Usa_Calculo_Tipo2 BIT
+        Descripcion_Ruta NVARCHAR(200)
     );
 
-    -- Insertar TODOS los activos nacionales
+    -- 3. Insertar activos NACIONALES (Fiscal)
+    -- Criterio: ManejaFiscal='S' AND CostoMXN > 0 AND Tasa_Anual > 0
     INSERT INTO #ActivosCalculo (
-        ID_Staging, ID_NUM_ACTIVO, ID_ACTIVO, DESCRIPCION,
-        MOI, Tasa_Anual, Tasa_Mensual,
-        FECHA_COMPRA, FECHA_BAJA, FECHA_INIC_DEPREC_3, ID_PAIS,
-        Dep_Acum_Inicio,
-        INPC_Adqu, INPC_Mitad_Ejercicio,
-        Usa_Calculo_Tipo2
+        ID_Staging, ID_NUM_ACTIVO, MOI, Tasa_Anual, Tasa_Mensual,
+        FECHA_COMPRA, FECHA_BAJA, ID_PAIS, Dep_Acum_Inicio,
+        INPC_Adqu, INPC_Mitad_Ejercicio
     )
     SELECT
         s.ID_Staging,
         s.ID_NUM_ACTIVO,
-        s.ID_ACTIVO,
-        s.DESCRIPCION,
-        s.CostoMXN AS MOI,  -- Usar CostoMXN directamente
+        s.CostoMXN AS MOI,
         s.Tasa_Anual,
         s.Tasa_Mensual,
         s.FECHA_COMPRA,
         s.FECHA_BAJA,
-        s.FECHA_INIC_DEPREC_3,
         s.ID_PAIS,
-        ISNULL(s.Dep_Acum_Inicio_Año, 0) AS Dep_Acum_Inicio,
+        ISNULL(s.Dep_Acum_Inicio_Año, 0) AS Dep_Acum_Inicio,  -- Usar histórico, NUNCA calcular
         s.INPC_Adquisicion AS INPC_Adqu,
-        s.INPC_Mitad_Ejercicio,
-        -- Marcar si usará cálculo tipo 2
-        CASE WHEN ISNULL(s.Dep_Acum_Inicio_Año, 0) = 0 THEN 1 ELSE 0 END AS Usa_Calculo_Tipo2
+        s.INPC_Mitad_Ejercicio
     FROM Staging_Activo s
     WHERE s.ID_Compania = @ID_Compania
-      AND s.Lote_Importacion = @Lote_Importacion
-      AND s.ID_PAIS = 1  -- Solo nacionales (México)
+      AND s.Año_Calculo = @Año_Calculo
+      AND s.ManejaFiscal = 'S'  -- NACIONALES: ManejaFiscal = 'S'
       AND s.CostoMXN IS NOT NULL
-      AND s.CostoMXN > 0;
+      AND s.CostoMXN > 0
+      AND s.Tasa_Anual > 0;  -- EXCLUIR terrenos y activos sin depreciación (NO aplican Safe Harbor)
 
     SET @RegistrosProcesados = @@ROWCOUNT;
     PRINT 'Activos nacionales encontrados: ' + CAST(@RegistrosProcesados AS VARCHAR(10));
@@ -106,46 +105,15 @@ BEGIN
     IF @RegistrosProcesados = 0
     BEGIN
         PRINT 'No hay activos nacionales para calcular';
+        DROP TABLE #ActivosCalculo;
         RETURN 0;
     END
 
-    -- Calcular depreciación acumulada para activos tipo 2
+    -- 4. Calcular Depreciación Anual
     UPDATE #ActivosCalculo
-    SET Dep_Acum_Calculada = dbo.fn_CalcularDepFiscal_Tipo2(
-        MOI,
-        Tasa_Mensual,
-        FECHA_INIC_DEPREC_3,
-        @Año_Anterior,
-        ID_PAIS,
-        NULL  -- No se usa tipo de cambio para nacionales
-    )
-    WHERE Usa_Calculo_Tipo2 = 1
-      AND FECHA_INIC_DEPREC_3 IS NOT NULL;
+    SET Dep_Anual = MOI * (Tasa_Anual / 100);
 
-    -- Actualizar Dep_Acum_Inicio con el valor calculado
-    UPDATE #ActivosCalculo
-    SET Dep_Acum_Inicio = CASE
-        WHEN Usa_Calculo_Tipo2 = 1 THEN ISNULL(Dep_Acum_Calculada, 0)
-        ELSE Dep_Acum_Inicio
-    END;
-
-    -- Reportar cuántos activos usaron cálculo tipo 2
-    DECLARE @ActivosTipo2 INT;
-    SELECT @ActivosTipo2 = COUNT(*)
-    FROM #ActivosCalculo
-    WHERE Usa_Calculo_Tipo2 = 1;
-
-    PRINT 'Activos con cálculo tipo 2 (FECHA_INIC_DEPREC_3): ' + CAST(@ActivosTipo2 AS VARCHAR(10));
-
-    -- Calcular Depreciación Anual
-    UPDATE #ActivosCalculo
-    SET Dep_Anual = MOI * Tasa_Anual;
-
-    -- Calcular INPC_Mitad_Periodo (para nacionales es igual a INPC_Mitad_Ejercicio)
-    UPDATE #ActivosCalculo
-    SET INPC_Mitad_Periodo = INPC_Mitad_Ejercicio;
-
-    -- Calcular meses de uso al inicio del ejercicio
+    -- 5. Calcular meses de uso al inicio del ejercicio
     UPDATE #ActivosCalculo
     SET Meses_Uso_Inicio_Ejercicio =
         CASE
@@ -154,7 +122,7 @@ BEGIN
             ELSE DATEDIFF(MONTH, FECHA_COMPRA, CAST(CAST(@Año_Anterior AS VARCHAR(4)) + '-12-31' AS DATE)) + 1
         END;
 
-    -- Calcular meses hasta la mitad del periodo
+    -- 6. Calcular meses hasta la mitad del periodo
     UPDATE #ActivosCalculo
     SET Meses_Hasta_Mitad_Periodo =
         CASE
@@ -165,7 +133,7 @@ BEGIN
             ELSE (13 - MONTH(FECHA_COMPRA)) / 2
         END;
 
-    -- Calcular meses de uso en el ejercicio
+    -- 7. Calcular meses de uso en el ejercicio
     UPDATE #ActivosCalculo
     SET Meses_Uso_Ejercicio =
         CASE
@@ -176,15 +144,27 @@ BEGIN
             ELSE 12
         END;
 
-    -- Calcular Saldo por Deducir ISR al Inicio del Año
+    -- 8. Calcular Saldo por Deducir ISR al Inicio del Año
     UPDATE #ActivosCalculo
     SET Saldo_Inicio_Año = MOI - Dep_Acum_Inicio;
 
-    -- Calcular Depreciación Fiscal del Ejercicio
-    UPDATE #ActivosCalculo
-    SET Dep_Ejercicio = MOI * Tasa_Mensual * Meses_Hasta_Mitad_Periodo;
+    -- 8b. EXCLUIR activos totalmente depreciados (sin saldo por deducir)
+    DELETE FROM #ActivosCalculo
+    WHERE Saldo_Inicio_Año <= 0;
 
-    -- Calcular Monto Pendiente por Deducir
+    PRINT 'Activos totalmente depreciados excluidos: ' + CAST(@@ROWCOUNT AS VARCHAR(10));
+
+    -- 9. Calcular Depreciación Fiscal del Ejercicio
+    -- IMPORTANTE: La depreciación no puede exceder el saldo disponible
+    UPDATE #ActivosCalculo
+    SET Dep_Ejercicio =
+        CASE
+            WHEN (MOI * Tasa_Mensual * Meses_Hasta_Mitad_Periodo) > Saldo_Inicio_Año
+            THEN Saldo_Inicio_Año  -- Limitar a saldo disponible
+            ELSE MOI * Tasa_Mensual * Meses_Hasta_Mitad_Periodo
+        END;
+
+    -- 10. Calcular Monto Pendiente por Deducir
     UPDATE #ActivosCalculo
     SET Monto_Pendiente =
         CASE
@@ -192,11 +172,53 @@ BEGIN
             ELSE (Saldo_Inicio_Año - Dep_Ejercicio)
         END;
 
-    -- Calcular Proporción del Monto Pendiente
+    -- 11. Calcular Factor de Actualización del Saldo (INPC)
     UPDATE #ActivosCalculo
-    SET Proporcion = (Monto_Pendiente / 12.0) * Meses_Uso_Ejercicio;
+    SET Factor_Actualizacion_Saldo =
+        CASE
+            WHEN INPC_Adqu IS NOT NULL AND INPC_Adqu > 0 AND INPC_Mitad_Ejercicio IS NOT NULL
+            THEN INPC_Mitad_Ejercicio / INPC_Adqu
+            ELSE 1.0
+        END;
 
-    -- APLICAR REGLA DEL MAYOR (Proporción vs 10% MOI)
+    PRINT 'Factor de actualización de saldo calculado';
+
+    -- 12. Calcular Saldo Actualizado
+    UPDATE #ActivosCalculo
+    SET Saldo_Actualizado = Saldo_Inicio_Año * Factor_Actualizacion_Saldo;
+
+    -- 13. Obtener INPC de la mitad del periodo y calcular Factor de Actualización de Depreciación
+    -- INPC_Mitad_Periodo: mes correspondiente a la mitad del periodo usado en el ejercicio
+    UPDATE #ActivosCalculo
+    SET INPC_Mitad_Periodo = INPC_Mitad_Ejercicio;  -- Por simplicidad, usar INPC de junio
+
+    UPDATE #ActivosCalculo
+    SET Factor_Actualizacion_Dep =
+        CASE
+            WHEN INPC_Adqu IS NOT NULL AND INPC_Adqu > 0 AND INPC_Mitad_Periodo IS NOT NULL
+            THEN INPC_Mitad_Periodo / INPC_Adqu
+            ELSE 1.0
+        END;
+
+    PRINT 'Factor de actualización de depreciación calculado';
+
+    -- 14. Calcular Depreciación Actualizada
+    UPDATE #ActivosCalculo
+    SET Dep_Actualizada = Dep_Ejercicio * Factor_Actualizacion_Dep;
+
+    -- 15. Calcular Valor Promedio
+    -- Valor_Promedio = Saldo_Actualizado - (Dep_Actualizada × 0.5)
+    UPDATE #ActivosCalculo
+    SET Valor_Promedio = Saldo_Actualizado - (Dep_Actualizada * 0.5);
+
+    -- 16. Calcular Proporción
+    -- Proporcion = Valor_Promedio × (Meses_Uso_En_Ejercicio / 12)
+    UPDATE #ActivosCalculo
+    SET Proporcion = Valor_Promedio * (Meses_Uso_Ejercicio / 12.0);
+
+    PRINT 'Proporción con actualización INPC calculada';
+
+    -- 17. APLICAR REGLA DEL MAYOR (Proporción vs 10% MOI)
     UPDATE #ActivosCalculo
     SET Prueba_10Pct = MOI * 0.10,
         Valor_MXN =  -- Para nacionales, Valor_MXN es directamente el mayor
@@ -210,7 +232,7 @@ BEGIN
                 ELSE 0
             END;
 
-    -- Determinar ruta de cálculo
+    -- 13. Determinar ruta de cálculo
     UPDATE #ActivosCalculo
     SET Ruta_Calculo =
             CASE
@@ -229,99 +251,62 @@ BEGIN
                 ELSE 'Activo en uso normal en ' + CAST(@Año_Calculo AS VARCHAR(10))
             END;
 
-    -- Insertar resultados en Calculo_RMF
+    -- 14. Insertar resultados en Calculo_RMF
     INSERT INTO Calculo_RMF (
-        ID_Staging,
-        ID_Compania,
-        ID_NUM_ACTIVO,
-        Año_Calculo,
-        Tipo_Activo,
-        ID_PAIS,
-        Ruta_Calculo,
-        Descripcion_Ruta,
-        MOI,
-        Tasa_Anual,
-        Tasa_Mensual,
-        Dep_Anual,
-        Dep_Acum_Inicio,
-        INPC_Adqu,
-        INPC_Mitad_Ejercicio,
-        INPC_Mitad_Periodo,
-        Meses_Uso_Inicio_Ejercicio,
-        Meses_Uso_Hasta_Mitad_Periodo,
-        Meses_Uso_En_Ejercicio,
-        Saldo_Inicio_Año,
-        Dep_Fiscal_Ejercicio,
-        Monto_Pendiente,
-        Proporcion,
-        Prueba_10_Pct_MOI,
-        Aplica_10_Pct,
-        Valor_Reportable_USD,
-        Tipo_Cambio_30_Junio,
-        Valor_Reportable_MXN,
-        Fecha_Adquisicion,
-        Fecha_Baja,
-        Fecha_Calculo,
-        Lote_Calculo,
-        Version_SP
+        ID_Staging, ID_Compania, ID_NUM_ACTIVO, Año_Calculo, Tipo_Activo,
+        ID_PAIS, Ruta_Calculo, Descripcion_Ruta,
+        MOI, Tasa_Anual, Tasa_Mensual, Dep_Anual, Dep_Acum_Inicio,
+        INPC_Adqu, INPC_Mitad_Ejercicio, INPC_Mitad_Periodo,
+        Factor_Actualizacion_Saldo, Factor_Actualizacion_Dep,
+        Saldo_Actualizado, Dep_Actualizada, Valor_Promedio,
+        Meses_Uso_Inicio_Ejercicio, Meses_Uso_Hasta_Mitad_Periodo, Meses_Uso_En_Ejercicio,
+        Saldo_Inicio_Año, Dep_Fiscal_Ejercicio, Monto_Pendiente, Proporcion,
+        Prueba_10_Pct_MOI, Aplica_10_Pct,
+        Valor_Reportable_USD, Tipo_Cambio_30_Junio, Valor_Reportable_MXN,
+        Fecha_Adquisicion, Fecha_Baja, Fecha_Calculo, Lote_Calculo, Version_SP
     )
     SELECT
-        ID_Staging,
-        @ID_Compania,
-        ID_NUM_ACTIVO,
-        @Año_Calculo,
-        'Nacional',
-        ID_PAIS,
-        Ruta_Calculo,
-        Descripcion_Ruta,
-        MOI,
-        Tasa_Anual,
-        Tasa_Mensual,
-        Dep_Anual,
-        Dep_Acum_Inicio,
-        INPC_Adqu,
-        INPC_Mitad_Ejercicio,
-        INPC_Mitad_Periodo,
-        Meses_Uso_Inicio_Ejercicio,
-        Meses_Hasta_Mitad_Periodo,
-        Meses_Uso_Ejercicio,
-        Saldo_Inicio_Año,
-        Dep_Ejercicio,
-        Monto_Pendiente,
-        Proporcion,
-        Prueba_10Pct,
-        Aplica_Regla_10Pct,
-        NULL,  -- Valor_Reportable_USD (no aplica para nacionales)
-        NULL,  -- Tipo_Cambio_30_Junio (no aplica para nacionales)
-        Valor_MXN,
-        FECHA_COMPRA,
-        FECHA_BAJA,
-        GETDATE(),
-        @Lote_Calculo,
-        'NAC-v1.0'
+        ID_Staging, @ID_Compania, ID_NUM_ACTIVO, @Año_Calculo, 'Nacional',
+        ID_PAIS, Ruta_Calculo, Descripcion_Ruta,
+        MOI, Tasa_Anual, Tasa_Mensual, Dep_Anual, Dep_Acum_Inicio,
+        INPC_Adqu, INPC_Mitad_Ejercicio, INPC_Mitad_Periodo,
+        Factor_Actualizacion_Saldo, Factor_Actualizacion_Dep,
+        Saldo_Actualizado, Dep_Actualizada, Valor_Promedio,
+        Meses_Uso_Inicio_Ejercicio, Meses_Hasta_Mitad_Periodo, Meses_Uso_Ejercicio,
+        Saldo_Inicio_Año, Dep_Ejercicio, Monto_Pendiente, Proporcion,
+        Prueba_10Pct, Aplica_Regla_10Pct,
+        NULL, NULL, Valor_MXN,  -- No aplican USD ni TC para nacionales
+        FECHA_COMPRA, FECHA_BAJA, GETDATE(), @Lote_Calculo, 'v4.1-INPC-FIXED'
     FROM #ActivosCalculo;
 
     SET @RegistrosProcesados = @@ROWCOUNT;
 
-    -- Resumen por ruta
+    -- 15. Mostrar resumen
+    DECLARE @TotalValorReportable DECIMAL(18,2);
+    DECLARE @ActivosRegla10Pct INT;
+
     SELECT
-        Ruta_Calculo,
-        COUNT(*) AS Cantidad,
-        SUM(Valor_MXN) AS Total_MXN,
-        SUM(CASE WHEN Aplica_Regla_10Pct = 1 THEN 1 ELSE 0 END) AS Con_Regla_10Pct
-    FROM #ActivosCalculo
-    GROUP BY Ruta_Calculo
-    ORDER BY Ruta_Calculo;
+        @TotalValorReportable = SUM(Valor_MXN),
+        @ActivosRegla10Pct = SUM(CAST(Aplica_Regla_10Pct AS INT))
+    FROM #ActivosCalculo;
+
+    PRINT '';
+    PRINT '========================================';
+    PRINT 'RESUMEN DE CÁLCULO';
+    PRINT '========================================';
+    PRINT 'Registros procesados: ' + CAST(@RegistrosProcesados AS VARCHAR(10));
+    PRINT 'Total valor reportable (MXN): $' + FORMAT(@TotalValorReportable, 'N2');
+    PRINT 'Activos con regla 10% MOI: ' + CAST(@ActivosRegla10Pct AS VARCHAR(10));
+    PRINT '';
 
     DROP TABLE #ActivosCalculo;
 
-    PRINT '========================================';
-    PRINT 'Cálculo completado: ' + CAST(@RegistrosProcesados AS VARCHAR(10)) + ' activos';
+    PRINT 'Cálculo completado exitosamente';
     PRINT '========================================';
 
     RETURN @RegistrosProcesados;
 END
 GO
 
-PRINT 'Stored Procedure sp_Calcular_RMF_Activos_Nacionales creado exitosamente';
+PRINT 'SP sp_Calcular_RMF_Activos_Nacionales creado (v3.0-FIXED)';
 GO
