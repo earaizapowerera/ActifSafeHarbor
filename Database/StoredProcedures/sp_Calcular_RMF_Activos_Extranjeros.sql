@@ -19,7 +19,6 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    DECLARE @Lote_Calculo UNIQUEIDENTIFIER = NEWID();  -- Generar lote automáticamente
     DECLARE @Año_Anterior INT = @Año_Calculo - 1;
     DECLARE @Fecha_30_Junio DATE = CAST(CAST(@Año_Calculo AS VARCHAR(4)) + '-06-30' AS DATE);
     DECLARE @TipoCambio_30Jun DECIMAL(18,6);
@@ -30,7 +29,6 @@ BEGIN
     PRINT 'Iniciando cálculo RMF Activos Extranjeros v4.7';
     PRINT 'Compañía: ' + CAST(@ID_Compania AS VARCHAR(10));
     PRINT 'Año: ' + CAST(@Año_Calculo AS VARCHAR(10));
-    PRINT 'Lote Cálculo: ' + CAST(@Lote_Calculo AS VARCHAR(50));
     PRINT '========================================';
 
     -- 1. Obtener tipo de cambio del 30 de junio del año actual
@@ -319,7 +317,6 @@ BEGIN
         Fecha_Adquisicion,
         Fecha_Baja,
         Fecha_Calculo,
-        Lote_Calculo,
         Version_SP
     )
     SELECT
@@ -354,8 +351,7 @@ BEGIN
         FECHA_COMPRA,
         FECHA_BAJA,
         GETDATE(),
-        @Lote_Calculo,
-        'v4.7'
+        'v4.7-NO-LOTE'
     FROM #ActivosCalculo
     WHERE Valor_MXN IS NOT NULL;
 

@@ -21,7 +21,6 @@ BEGIN
     DECLARE @Año_Anterior INT = @Año_Calculo - 1;
     DECLARE @Fecha_30_Junio DATE = CAST(CAST(@Año_Calculo AS VARCHAR(4)) + '-06-30' AS DATE);
     DECLARE @RegistrosProcesados INT = 0;
-    DECLARE @Lote_Calculo UNIQUEIDENTIFIER = NEWID();  -- Generar lote automáticamente
 
     PRINT '========================================';
     PRINT 'Cálculo RMF Activos Nacionales';
@@ -46,6 +45,7 @@ BEGIN
         Tasa_Mensual DECIMAL(18,6),
         Dep_Anual DECIMAL(18,4),
         FECHA_COMPRA DATE,
+        FECHA_INICIO_DEP DATE,  -- FECHA_INIC_DEPREC para calcular meses de depreciación
         FECHA_BAJA DATE,
         ID_PAIS INT,
         Dep_Acum_Inicio DECIMAL(18,4),
@@ -76,7 +76,7 @@ BEGIN
     -- Criterio: ManejaFiscal='S' AND CostoMXN > 0 AND Tasa_Anual > 0
     INSERT INTO #ActivosCalculo (
         ID_Staging, ID_NUM_ACTIVO, MOI, Tasa_Anual, Tasa_Mensual,
-        FECHA_COMPRA, FECHA_BAJA, ID_PAIS, Dep_Acum_Inicio,
+        FECHA_COMPRA, FECHA_INICIO_DEP, FECHA_BAJA, ID_PAIS, Dep_Acum_Inicio,
         INPC_Adqu, INPC_Mitad_Ejercicio
     )
     SELECT
@@ -85,7 +85,8 @@ BEGIN
         s.CostoMXN AS MOI,
         s.Tasa_Anual,
         s.Tasa_Mensual,
-        s.FECHA_COMPRA,
+        s.FECHA_COMPRA,  -- Para INPC (adquisición)
+        s.FECHA_INICIO_DEP,  -- Para calcular meses de depreciación
         s.FECHA_BAJA,
         s.ID_PAIS,
         ISNULL(s.Dep_Acum_Inicio_Año, 0) AS Dep_Acum_Inicio,  -- Usar histórico, NUNCA calcular
@@ -114,12 +115,13 @@ BEGIN
     SET Dep_Anual = MOI * (Tasa_Anual / 100);
 
     -- 5. Calcular meses de uso al inicio del ejercicio
+    -- USAR FECHA_INICIO_DEP para calcular meses de depreciación acumulada
     UPDATE #ActivosCalculo
     SET Meses_Uso_Inicio_Ejercicio =
         CASE
-            WHEN FECHA_COMPRA >= CAST(CAST(@Año_Calculo AS VARCHAR(4)) + '-01-01' AS DATE)
+            WHEN FECHA_INICIO_DEP IS NULL OR FECHA_INICIO_DEP >= CAST(CAST(@Año_Calculo AS VARCHAR(4)) + '-01-01' AS DATE)
             THEN 0
-            ELSE DATEDIFF(MONTH, FECHA_COMPRA, CAST(CAST(@Año_Anterior AS VARCHAR(4)) + '-12-31' AS DATE)) + 1
+            ELSE DATEDIFF(MONTH, FECHA_INICIO_DEP, CAST(CAST(@Año_Anterior AS VARCHAR(4)) + '-12-31' AS DATE)) + 1
         END;
 
     -- 6. Calcular meses hasta la mitad del periodo
@@ -264,7 +266,7 @@ BEGIN
         Saldo_Inicio_Año, Dep_Fiscal_Ejercicio, Monto_Pendiente, Proporcion,
         Prueba_10_Pct_MOI, Aplica_10_Pct,
         Valor_Reportable_USD, Tipo_Cambio_30_Junio, Valor_Reportable_MXN,
-        Fecha_Adquisicion, Fecha_Baja, Fecha_Calculo, Lote_Calculo, Version_SP
+        Fecha_Adquisicion, Fecha_Baja, Fecha_Calculo, Version_SP
     )
     SELECT
         ID_Staging, @ID_Compania, ID_NUM_ACTIVO, @Año_Calculo, 'Nacional',
@@ -277,7 +279,7 @@ BEGIN
         Saldo_Inicio_Año, Dep_Ejercicio, Monto_Pendiente, Proporcion,
         Prueba_10Pct, Aplica_Regla_10Pct,
         NULL, NULL, Valor_MXN,  -- No aplican USD ni TC para nacionales
-        FECHA_COMPRA, FECHA_BAJA, GETDATE(), @Lote_Calculo, 'v4.2-PRECISION-FIX'
+        FECHA_COMPRA, FECHA_BAJA, GETDATE(), 'v4.3-NO-LOTE'
     FROM #ActivosCalculo;
 
     SET @RegistrosProcesados = @@ROWCOUNT;
