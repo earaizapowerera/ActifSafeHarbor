@@ -3,14 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate, max-age=0">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="-1">
     <title>Extracción ETL - ActifRMF</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="/css/shared.css?v=13">
-
-    <!-- VERSIÓN 13 - Filtro compañías + fix historial ETL_NET + barra progreso mejorada -->
-    <script>window.APP_VERSION = 'v13';</script>
+    <script>
+        // Generar timestamp al inicio para CSS también
+        window.APP_VERSION = Date.now();
+        document.write('<link rel="stylesheet" href="/css/shared.css?v=' + window.APP_VERSION + '">');
+    </script>
 </head>
 <body>
     <div id="navbar-placeholder"></div>
@@ -18,7 +22,10 @@
     <div class="container mt-4">
         <div class="row">
             <div class="col-12">
-                <h1><i class="fas fa-download"></i> Extracción ETL</h1>
+                <h1>
+                    <i class="fas fa-download"></i> Extracción ETL
+                    <span id="versionBadge" class="badge bg-secondary ms-2" style="font-size: 0.5rem; vertical-align: middle;">Cargando...</span>
+                </h1>
                 <p class="lead">Extrae datos de activos NO propios de la base de datos origen</p>
             </div>
         </div>
@@ -32,10 +39,14 @@
                     <div class="card-body">
                         <form id="formExtraccion">
                             <div class="mb-3">
-                                <label for="companiaSelect" class="form-label">Compañía *</label>
-                                <select class="form-select" id="companiaSelect" required>
-                                    <option value="">Cargando compañías...</option>
-                                </select>
+                                <label class="form-label">
+                                    Compañías * <small class="text-muted">(selecciona una o más)</small>
+                                    <span class="badge bg-info ms-2" style="font-size: 0.7rem;">CHECKLIST v2</span>
+                                </label>
+                                <div id="companiasChecklist" class="border rounded p-3" style="max-height: 300px; overflow-y: auto; background-color: #f8f9fa;">
+                                    <div class="text-center text-muted">Cargando compañías...</div>
+                                </div>
+                                <small class="form-text text-muted">El ETL procesará las compañías seleccionadas en secuencia</small>
                             </div>
 
                             <div class="mb-3">
@@ -138,8 +149,32 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="/js/shared.js?v=13"></script>
-    <script src="/js/extraccion.js?v=13"></script>
-    <script>console.log('VERSIÓN CARGADA: v13 - Filtro compañías + fix historial ETL_NET + barra progreso');</script>
+    <script>
+        // Generar timestamp al cargar la página para evitar cache
+        window.APP_VERSION = Date.now();
+        console.log('VERSIÓN CARGADA:', window.APP_VERSION);
+
+        // Cargar scripts con timestamp dinámico
+        const loadScript = (src) => {
+            const script = document.createElement('script');
+            script.src = src + '?v=' + window.APP_VERSION;
+            document.body.appendChild(script);
+        };
+
+        loadScript('/js/shared.js');
+        loadScript('/js/extraccion.js');
+
+        // Mostrar versión en el badge
+        document.addEventListener('DOMContentLoaded', function() {
+            const badge = document.getElementById('versionBadge');
+            if (badge) {
+                const date = new Date(window.APP_VERSION);
+                badge.textContent = 'v' + date.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                badge.title = 'Versión: ' + window.APP_VERSION + ' - ' + date.toLocaleString('es-MX');
+                badge.classList.remove('bg-secondary');
+                badge.classList.add('bg-success');
+            }
+        });
+    </script>
 </body>
 </html>

@@ -21,7 +21,7 @@ BEGIN
     SET NOCOUNT ON;
 
     DECLARE @Lote_Calculo UNIQUEIDENTIFIER = NEWID();
-    DECLARE @Version_SP NVARCHAR(20) = '1.0.0';
+    DECLARE @Version_SP NVARCHAR(20) = '1.0.1-FIX-USDMXN';
     DECLARE @Registros_Procesados INT = 0;
 
     -- Obtener tipo de cambio del 30 de junio
@@ -47,6 +47,20 @@ BEGIN
     PRINT 'Año: ' + CAST(@Año_Calculo AS VARCHAR);
     PRINT 'Tipo Cambio 30-Jun: ' + CAST(@Tipo_Cambio_30_Junio AS VARCHAR);
     PRINT 'Lote Cálculo: ' + CAST(@Lote_Calculo AS VARCHAR(50));
+    PRINT '';
+
+    -- =============================================
+    -- LIMPIAR CÁLCULOS ANTERIORES
+    -- =============================================
+
+    PRINT 'Limpiando cálculos anteriores de Calculo_RMF...';
+
+    DELETE FROM Actif_RMF.dbo.Calculo_RMF
+    WHERE ID_Compania = @ID_Compania
+      AND Año_Calculo = @Año_Calculo
+      AND Tipo_Activo = 'Extranjero';
+
+    PRINT 'Registros de cálculos extranjeros eliminados: ' + CAST(@@ROWCOUNT AS VARCHAR);
     PRINT '';
 
     -- Variables para procesamiento fila por fila
@@ -86,9 +100,14 @@ BEGIN
         SELECT
             ID_Staging,
             ID_NUM_ACTIVO,
-            COSTO_ADQUISICION,
+            CostoUSD AS COSTO_ADQUISICION,
             Tasa_Mensual,
-            Dep_Acum_Inicio_Año,
+            -- FIX: Para activos USGAAP sin fiscal, usar 0 en vez de Dep_Acum_Inicio_Año
+            CASE
+                WHEN ManejaUSGAAP = 'S' AND ISNULL(ManejaFiscal, 'N') <> 'S'
+                THEN 0  -- Sin depreciación fiscal previa para USGAAP puro
+                ELSE ISNULL(Dep_Acum_Inicio_Año, 0)
+            END AS Dep_Acum_Inicio_Año,
             FECHA_COMPRA,
             FECHA_BAJA,
             ID_PAIS
@@ -98,6 +117,8 @@ BEGIN
           AND Lote_Importacion = @Lote_Importacion
           AND ID_PAIS > 1  -- Solo extranjeros
           AND Tasa_Mensual > 0  -- Excluir terrenos
+          AND CostoUSD IS NOT NULL
+          AND CostoUSD > 0
         ORDER BY ID_NUM_ACTIVO;
 
     OPEN cur_activos;
@@ -311,12 +332,11 @@ BEGIN
         @Año_Calculo AS Año_Calculo,
         'Extranjero' AS Tipo_Activo,
         @Registros_Procesados AS Registros_Calculados,
-        @Lote_Calculo AS Lote_Calculo,
-        SUM(Valor_Reportable_MXN) AS Total_Valor_Reportable_MXN,
+        CAST(@Lote_Calculo AS VARCHAR(50)) AS Lote_Calculo,
+        ISNULL(SUM(Valor_Reportable_MXN), 0) AS Total_Valor_Reportable_MXN,
         COUNT(CASE WHEN Aplica_10_Pct = 1 THEN 1 END) AS Activos_Con_Regla_10_Pct
     FROM dbo.Calculo_RMF
-    WHERE Lote_Calculo = @Lote_Calculo
-    GROUP BY @ID_Compania, @Año_Calculo, @Lote_Calculo;
+    WHERE Lote_Calculo = @Lote_Calculo;
 
 END
 GO

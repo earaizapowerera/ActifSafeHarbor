@@ -3,10 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate, max-age=0">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="-1">
     <title>Cálculo RMF - ActifRMF</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="/css/shared.css?v=13">
+    <script>
+        // Generar timestamp al inicio para CSS también
+        window.APP_VERSION = Date.now();
+        document.write('<link rel="stylesheet" href="/css/shared.css?v=' + window.APP_VERSION + '">');
+    </script>
 </head>
 <body>
     <div id="navbar-placeholder"></div>
@@ -14,7 +22,10 @@
     <div class="container mt-4">
         <div class="row">
             <div class="col-12">
-                <h1><i class="fas fa-calculator"></i> Cálculo RMF</h1>
+                <h1>
+                    <i class="fas fa-calculator"></i> Cálculo RMF
+                    <span id="versionBadge" class="badge bg-secondary ms-2" style="font-size: 0.5rem; vertical-align: middle;">Cargando...</span>
+                </h1>
                 <p class="lead">Ejecuta el cálculo de activos extranjeros para el reporte RMF</p>
             </div>
         </div>
@@ -28,23 +39,21 @@
                     <div class="card-body">
                         <form id="formCalculo">
                             <div class="mb-3">
-                                <label for="companiaSelect" class="form-label">Compañía *</label>
-                                <select class="form-select" id="companiaSelect" required>
-                                    <option value="">Cargando compañías...</option>
-                                </select>
-                            </div>
-
-                            <div class="mb-3">
                                 <label for="anioCalculo" class="form-label">Año de Cálculo *</label>
-                                <input type="number" class="form-control" id="anioCalculo" min="2020" max="2030" value="2024" required>
+                                <select class="form-select" id="anioCalculo" required>
+                                    <option value="">Seleccionar año...</option>
+                                </select>
+                                <small class="form-text text-muted">Primero selecciona el año</small>
                             </div>
 
                             <div class="mb-3">
-                                <label for="loteSelect" class="form-label">Lote de Importación (ETL) *</label>
-                                <select class="form-select" id="loteSelect" required disabled>
-                                    <option value="">Seleccione compañía y año primero...</option>
-                                </select>
-                                <small class="form-text text-muted">Se mostraran los lotes ETL disponibles para calcular</small>
+                                <label class="form-label">
+                                    Compañías con datos importados * <small class="text-muted">(selecciona una o más)</small>
+                                </label>
+                                <div id="companiasChecklist" class="border rounded p-3" style="max-height: 300px; overflow-y: auto; background-color: #f8f9fa;">
+                                    <div class="text-center text-muted">Seleccione primero un año</div>
+                                </div>
+                                <small class="form-text text-muted">El cálculo procesará las compañías seleccionadas en secuencia</small>
                             </div>
 
                             <div class="mb-3">
@@ -68,8 +77,8 @@
                     <div class="card-body">
                         <h6>¿Qué hace el Cálculo RMF?</h6>
                         <ul>
-                            <li>Toma datos de Staging_Activo (del lote ETL seleccionado)</li>
-                            <li>Ejecuta stored procedure sp_Calcular_RMF_Activos_Extranjeros</li>
+                            <li>Toma datos de Staging_Activo (todos los activos del año/compañía)</li>
+                            <li>Ejecuta stored procedures sp_Calcular_RMF_Activos_Extranjeros y sp_Calcular_RMF_Activos_Nacionales</li>
                             <li>Calcula MOI (Monto Original de Inversión)</li>
                             <li>Calcula depreciación fiscal del ejercicio</li>
                             <li>Calcula saldo pendiente de depreciar</li>
@@ -80,7 +89,7 @@
 
                         <h6 class="mt-3">Requisitos:</h6>
                         <ul>
-                            <li>Debe existir un lote ETL previo para la compañía/año</li>
+                            <li>Debe existir datos ETL previos para la compañía/año</li>
                             <li>El cálculo genera un nuevo GUID (Lote_Calculo)</li>
                             <li>Puede ejecutarse múltiples veces sin afectar cálculos anteriores</li>
                         </ul>
@@ -130,7 +139,32 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="/js/shared.js?v=13"></script>
-    <script src="/js/calculo.js?v=13"></script>
+    <script>
+        // Generar timestamp al cargar la página para evitar cache
+        window.APP_VERSION = Date.now();
+        console.log('VERSIÓN CARGADA:', window.APP_VERSION);
+
+        // Cargar scripts con timestamp dinámico
+        const loadScript = (src) => {
+            const script = document.createElement('script');
+            script.src = src + '?v=' + window.APP_VERSION;
+            document.body.appendChild(script);
+        };
+
+        loadScript('/js/shared.js');
+        loadScript('/js/calculo.js');
+
+        // Mostrar versión en el badge
+        document.addEventListener('DOMContentLoaded', function() {
+            const badge = document.getElementById('versionBadge');
+            if (badge) {
+                const date = new Date(window.APP_VERSION);
+                badge.textContent = 'v' + date.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                badge.title = 'Versión: ' + window.APP_VERSION + ' - ' + date.toLocaleString('es-MX');
+                badge.classList.remove('bg-secondary');
+                badge.classList.add('bg-success');
+            }
+        });
+    </script>
 </body>
 </html>

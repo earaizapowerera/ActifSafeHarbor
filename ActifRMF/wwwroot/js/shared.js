@@ -1,5 +1,5 @@
 // Shared JavaScript - Carga el navbar en todas las páginas
-document.addEventListener('DOMContentLoaded', async function() {
+async function initShared() {
     // Cargar el navbar
     const navbarPlaceholder = document.getElementById('navbar-placeholder');
     if (navbarPlaceholder) {
@@ -14,7 +14,14 @@ document.addEventListener('DOMContentLoaded', async function() {
             console.error('Error al cargar navbar:', error);
         }
     }
-});
+}
+
+// Ejecutar inmediatamente si DOM ya está listo, o esperar al evento
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initShared);
+} else {
+    initShared();
+}
 
 function marcarItemActivo() {
     // Obtener el nombre de la página actual

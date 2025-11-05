@@ -51,6 +51,19 @@ BEGIN
     PRINT 'Lote Cálculo: ' + CAST(@Lote_Calculo AS VARCHAR(50));
     PRINT '';
 
+    -- =============================================
+    -- LIMPIAR CÁLCULOS ANTERIORES
+    -- =============================================
+
+    PRINT 'Limpiando cálculos anteriores de Calculo_RMF...';
+
+    DELETE FROM Actif_RMF.dbo.Calculo_RMF
+    WHERE ID_Compania = @ID_Compania
+      AND Año_Calculo = @Año_Calculo;
+
+    PRINT 'Registros eliminados: ' + CAST(@@ROWCOUNT AS VARCHAR);
+    PRINT '';
+
     -- Variables para procesamiento fila por fila
     DECLARE @ID_Staging BIGINT;
     DECLARE @ID_NUM_ACTIVO INT;

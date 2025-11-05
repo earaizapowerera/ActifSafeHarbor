@@ -115,8 +115,8 @@ app.MapPost("/api/etl/ejecutar", async (ETLRequest request) =>
         // Start ETL in background and return loteImportacion immediately
         var etlService = new ETLService(connectionStringRMF);
 
-        // MODO PRUEBA: Limitar a 500 registros si no se especifica
-        var maxRegistros = request.MaxRegistros ?? 500;
+        // Procesar TODOS los registros por defecto (solo limitar si se especifica maxRegistros)
+        var maxRegistros = request.MaxRegistros;
 
         // Run ETL in background task (fire and forget with proper error handling)
         _ = Task.Run(async () =>
@@ -330,7 +330,6 @@ app.MapPost("/api/calculo/ejecutar", async (CalculoRequest request) =>
                 await etlService.EjecutarCalculoAsync(
                     request.IdCompania,
                     request.AñoCalculo,
-                    request.LoteImportacion,
                     request.Usuario ?? "Web",
                     loteCalculo);
             }
@@ -346,8 +345,7 @@ app.MapPost("/api/calculo/ejecutar", async (CalculoRequest request) =>
             message = "Cálculo iniciado",
             loteCalculo = loteCalculo,
             idCompania = request.IdCompania,
-            añoCalculo = request.AñoCalculo,
-            loteImportacion = request.LoteImportacion
+            añoCalculo = request.AñoCalculo
         });
     }
     catch (Exception ex)
@@ -447,54 +445,6 @@ app.MapGet("/api/calculo/historial", async () =>
 .WithName("HistorialCalculo");
 
 // =============================================
-// ENDPOINT: Lotes disponibles para cálculo
-// =============================================
-app.MapGet("/api/calculo/lotes-disponibles/{idCompania}/{año}", async (int idCompania, int año) =>
-{
-    try
-    {
-        using var connection = new SqlConnection(connectionStringRMF);
-        await connection.OpenAsync();
-
-        var query = @"
-            SELECT
-                l.Lote_Importacion,
-                l.Fecha_Inicio,
-                l.Registros_Procesados
-            FROM dbo.Log_Ejecucion_ETL l
-            WHERE l.ID_Compania = @IdCompania
-              AND l.Año_Calculo = @Año
-              AND l.Tipo_Proceso IN ('ETL', 'ETL_NET')
-              AND l.Estado = 'Completado'
-            ORDER BY l.Fecha_Inicio DESC";
-
-        using var command = new SqlCommand(query, connection);
-        command.Parameters.AddWithValue("@IdCompania", idCompania);
-        command.Parameters.AddWithValue("@Año", año);
-
-        using var reader = await command.ExecuteReaderAsync();
-
-        var lotes = new List<object>();
-        while (await reader.ReadAsync())
-        {
-            lotes.Add(new
-            {
-                loteImportacion = reader.GetGuid(0),
-                fechaImportacion = reader.GetDateTime(1),
-                totalRegistros = reader.GetInt32(2)
-            });
-        }
-
-        return Results.Ok(lotes);
-    }
-    catch (Exception ex)
-    {
-        return Results.Problem($"Error: {ex.Message}");
-    }
-})
-.WithName("LotesDisponiblesCalculo");
-
-// =============================================
 // ENDPOINT: Obtener Resultado del Cálculo
 // =============================================
 app.MapGet("/api/calculo/resultado/{idCompania}/{añoCalculo}", async (int idCompania, int añoCalculo) =>
@@ -584,24 +534,43 @@ app.MapGet("/api/companias", async () =>
         using var connection = new SqlConnection(connectionStringRMF);
         await connection.OpenAsync();
 
-        // Filtrar solo compañías permitidas: 122, 123, 188, 1000, 1001, 1500, 12
-        var query = @"SELECT * FROM dbo.ConfiguracionCompania
-                      WHERE ID_Compania IN (12, 122, 123, 188, 1000, 1001, 1500)
-                      ORDER BY ID_Compania";
+        // Filtrar solo compañías permitidas y contar registros en Staging_Activo
+        var query = @"
+            SELECT
+                cc.ID_Configuracion,
+                cc.ID_Compania,
+                cc.Nombre_Compania,
+                cc.Nombre_Corto,
+                cc.ConnectionString_Actif,
+                cc.Activo,
+                COUNT(sa.ID_Staging) AS TotalRegistros
+            FROM dbo.ConfiguracionCompania cc
+            LEFT JOIN dbo.Staging_Activo sa ON cc.ID_Compania = sa.ID_Compania
+            WHERE cc.ID_Compania IN (12, 122, 123, 188, 1000, 1001, 1500)
+            GROUP BY cc.ID_Configuracion, cc.ID_Compania, cc.Nombre_Compania, cc.Nombre_Corto,
+                     cc.ConnectionString_Actif, cc.Activo
+            ORDER BY cc.ID_Compania";
         using var command = new SqlCommand(query, connection);
         using var reader = await command.ExecuteReaderAsync();
 
         var companias = new List<object>();
         while (await reader.ReadAsync())
         {
+            var nombreCompaniaOrdinal = reader.GetOrdinal("Nombre_Compania");
+            var nombreCortoOrdinal = reader.GetOrdinal("Nombre_Corto");
+            var connectionStringOrdinal = reader.GetOrdinal("ConnectionString_Actif");
+            var activoOrdinal = reader.GetOrdinal("Activo");
+            var totalRegistrosOrdinal = reader.GetOrdinal("TotalRegistros");
+
             companias.Add(new
             {
                 idConfiguracion = reader.GetInt32(reader.GetOrdinal("ID_Configuracion")),
                 idCompania = reader.GetInt32(reader.GetOrdinal("ID_Compania")),
-                nombreCompania = reader.GetString(reader.GetOrdinal("Nombre_Compania")),
-                nombreCorto = reader.GetString(reader.GetOrdinal("Nombre_Corto")),
-                connectionString = reader.GetString(reader.GetOrdinal("ConnectionString_Actif")),
-                activo = reader.GetBoolean(reader.GetOrdinal("Activo"))
+                nombreCompania = reader.IsDBNull(nombreCompaniaOrdinal) ? "Sin Nombre" : reader.GetString(nombreCompaniaOrdinal),
+                nombreCorto = reader.IsDBNull(nombreCortoOrdinal) ? "N/A" : reader.GetString(nombreCortoOrdinal),
+                connectionString = reader.IsDBNull(connectionStringOrdinal) ? "" : reader.GetString(connectionStringOrdinal),
+                activo = reader.IsDBNull(activoOrdinal) ? false : reader.GetBoolean(activoOrdinal),
+                totalRegistros = reader.GetInt32(totalRegistrosOrdinal)
             });
         }
 
@@ -630,14 +599,19 @@ app.MapGet("/api/companias/{id}", async (int id) =>
 
         if (await reader.ReadAsync())
         {
+            var nombreCompaniaOrdinal = reader.GetOrdinal("Nombre_Compania");
+            var nombreCortoOrdinal = reader.GetOrdinal("Nombre_Corto");
+            var connectionStringOrdinal = reader.GetOrdinal("ConnectionString_Actif");
+            var activoOrdinal = reader.GetOrdinal("Activo");
+
             return Results.Ok(new
             {
                 idConfiguracion = reader.GetInt32(reader.GetOrdinal("ID_Configuracion")),
                 idCompania = reader.GetInt32(reader.GetOrdinal("ID_Compania")),
-                nombreCompania = reader.GetString(reader.GetOrdinal("Nombre_Compania")),
-                nombreCorto = reader.GetString(reader.GetOrdinal("Nombre_Corto")),
-                connectionString = reader.GetString(reader.GetOrdinal("ConnectionString_Actif")),
-                activo = reader.GetBoolean(reader.GetOrdinal("Activo"))
+                nombreCompania = reader.IsDBNull(nombreCompaniaOrdinal) ? "Sin Nombre" : reader.GetString(nombreCompaniaOrdinal),
+                nombreCorto = reader.IsDBNull(nombreCortoOrdinal) ? "N/A" : reader.GetString(nombreCortoOrdinal),
+                connectionString = reader.IsDBNull(connectionStringOrdinal) ? "" : reader.GetString(connectionStringOrdinal),
+                activo = reader.IsDBNull(activoOrdinal) ? false : reader.GetBoolean(activoOrdinal)
             });
         }
 
@@ -958,100 +932,349 @@ app.MapGet("/api/dashboard/{año}", async (int año) =>
 .WithName("Dashboard");
 
 // =============================================
-// ENDPOINT: Obtener datos de reporte
+// ENDPOINT: Obtener compañías con registros calculados por año
 // =============================================
-app.MapGet("/api/reporte/{idCompania}/{añoCalculo}", async (int idCompania, int añoCalculo) =>
+app.MapGet("/api/reporte/companias-con-registros", async (int? año) =>
 {
     try
     {
+        if (!año.HasValue)
+        {
+            return Results.BadRequest(new { error = "Se requiere el parámetro 'año'" });
+        }
+
         using var connection = new SqlConnection(connectionStringRMF);
         await connection.OpenAsync();
 
         var query = @"
             SELECT
-                c.ID_Calculo,
-                c.ID_NUM_ACTIVO,
-                s.ID_ACTIVO AS Placa,
-                s.DESCRIPCION,
-                s.Nombre_TipoActivo,
-                s.Nombre_Pais,
-                c.Ruta_Calculo,
-                c.Descripcion_Ruta,
-                c.MOI,
-                c.INPC_Adqu,
-                c.INPC_Mitad_Ejercicio,
-                c.INPC_Mitad_Periodo,
-                c.Meses_Uso_Inicio_Ejercicio,
-                c.Meses_Uso_Hasta_Mitad_Periodo,
-                c.Meses_Uso_En_Ejercicio,
-                c.Saldo_Inicio_Año,
-                c.Dep_Fiscal_Ejercicio,
-                c.Monto_Pendiente,
-                c.Proporcion,
-                c.Prueba_10_Pct_MOI,
-                c.Aplica_10_Pct,
-                c.Tipo_Cambio_30_Junio,
-                c.Valor_Reportable_MXN,
-                c.Tasa_Anual,
-                c.Dep_Anual,
-                c.Valor_Reportable_USD,
-                s.FECHA_COMPRA AS Fecha_Adquisicion,
-                s.FECHA_BAJA AS Fecha_Baja,
-                c.Observaciones,
-                c.Fecha_Calculo,
-                c.Lote_Calculo
-            FROM dbo.Calculo_RMF c
-            INNER JOIN dbo.Staging_Activo s ON c.ID_Staging = s.ID_Staging
-            WHERE c.ID_Compania = @IdCompania
-              AND c.Año_Calculo = @AñoCalculo
-            ORDER BY c.ID_NUM_ACTIVO";
+                c.ID_Compania AS idCompania,
+                c.Nombre_Compania AS nombreCompania,
+                COUNT(calc.ID_Calculo) AS totalRegistros
+            FROM ConfiguracionCompania c
+            INNER JOIN Calculo_RMF calc ON c.ID_Compania = calc.ID_Compania
+            WHERE calc.Año_Calculo = @Año
+              AND c.Activo = 1
+            GROUP BY c.ID_Compania, c.Nombre_Compania
+            HAVING COUNT(calc.ID_Calculo) > 0
+            ORDER BY c.Nombre_Compania";
 
         using var command = new SqlCommand(query, connection);
-        command.Parameters.AddWithValue("@IdCompania", idCompania);
-        command.Parameters.AddWithValue("@AñoCalculo", añoCalculo);
+        command.Parameters.AddWithValue("@Año", año.Value);
 
+        var companias = new List<object>();
         using var reader = await command.ExecuteReaderAsync();
 
-        var resultados = new List<object>();
         while (await reader.ReadAsync())
         {
-            resultados.Add(new
+            companias.Add(new
             {
-                idCalculo = reader.GetInt64(0),
-                idNumActivo = reader.GetInt32(1),
-                placa = reader.IsDBNull(2) ? null : reader.GetString(2),
-                descripcion = reader.IsDBNull(3) ? null : reader.GetString(3),
-                tipoActivo = reader.IsDBNull(4) ? null : reader.GetString(4),
-                pais = reader.IsDBNull(5) ? null : reader.GetString(5),
-                rutaCalculo = reader.GetString(6),
-                descripcionRuta = reader.GetString(7),
-                moi = reader.GetDecimal(8),
-                inpcAdquisicion = reader.IsDBNull(9) ? (decimal?)null : reader.GetDecimal(9),
-                inpcMitadEjercicio = reader.IsDBNull(10) ? (decimal?)null : reader.GetDecimal(10),
-                inpcMitadPeriodo = reader.IsDBNull(11) ? (decimal?)null : reader.GetDecimal(11),
-                mesesInicio = reader.GetInt32(12),
-                mesesMitad = reader.GetInt32(13),
-                mesesEjercicio = reader.GetInt32(14),
-                saldoInicio = reader.GetDecimal(15),
-                depEjercicio = reader.GetDecimal(16),
-                montoPendiente = reader.IsDBNull(17) ? (decimal?)null : reader.GetDecimal(17),
-                proporcion = reader.IsDBNull(18) ? (decimal?)null : reader.GetDecimal(18),
-                prueba10Pct = reader.IsDBNull(19) ? (decimal?)null : reader.GetDecimal(19),
-                aplica10Pct = reader.IsDBNull(20) ? (bool?)null : reader.GetBoolean(20),
-                tipoCambio = reader.IsDBNull(21) ? (decimal?)null : reader.GetDecimal(21),
-                valorReportable = reader.GetDecimal(22),
-                tasaAnual = reader.IsDBNull(23) ? (decimal?)null : reader.GetDecimal(23),
-                depAnual = reader.IsDBNull(24) ? (decimal?)null : reader.GetDecimal(24),
-                valorReportableUSD = reader.IsDBNull(25) ? (decimal?)null : reader.GetDecimal(25),
-                fechaAdquisicion = reader.IsDBNull(26) ? (DateTime?)null : reader.GetDateTime(26),
-                fechaBaja = reader.IsDBNull(27) ? (DateTime?)null : reader.GetDateTime(27),
-                observaciones = reader.IsDBNull(28) ? null : reader.GetString(28),
-                fechaCalculo = reader.GetDateTime(29),
-                loteCalculo = reader.GetGuid(30)
+                idCompania = reader.GetInt32(0),
+                nombreCompania = reader.GetString(1),
+                totalRegistros = reader.GetInt32(2)
             });
         }
 
-        return Results.Ok(resultados);
+        return Results.Ok(companias);
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Error al obtener compañías con registros: {ex.Message}");
+        return Results.Problem($"Error al obtener compañías: {ex.Message}");
+    }
+})
+.WithName("ObtenerCompaniasConRegistros");
+
+// =============================================
+// ENDPOINT: Obtener compañías con datos importados por año
+// =============================================
+app.MapGet("/api/calculo/companias-con-datos", async (int? año) =>
+{
+    try
+    {
+        if (!año.HasValue)
+        {
+            return Results.BadRequest(new { error = "Se requiere el parámetro 'año'" });
+        }
+
+        using var connection = new SqlConnection(connectionStringRMF);
+        await connection.OpenAsync();
+
+        var query = @"
+            SELECT
+                c.ID_Compania AS idCompania,
+                c.Nombre_Compania AS nombreCompania,
+                COUNT(s.ID_Staging) AS totalRegistros
+            FROM ConfiguracionCompania c
+            INNER JOIN Staging_Activo s ON c.ID_Compania = s.ID_Compania
+            WHERE s.Año_Calculo = @Año
+              AND c.Activo = 1
+            GROUP BY c.ID_Compania, c.Nombre_Compania
+            HAVING COUNT(s.ID_Staging) > 0
+            ORDER BY c.Nombre_Compania";
+
+        using var command = new SqlCommand(query, connection);
+        command.Parameters.AddWithValue("@Año", año.Value);
+
+        var companias = new List<object>();
+        using var reader = await command.ExecuteReaderAsync();
+
+        while (await reader.ReadAsync())
+        {
+            companias.Add(new
+            {
+                idCompania = reader.GetInt32(0),
+                nombreCompania = reader.GetString(1),
+                totalRegistros = reader.GetInt32(2)
+            });
+        }
+
+        return Results.Ok(companias);
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Error al obtener compañías con datos importados: {ex.Message}");
+        return Results.Problem($"Error al obtener compañías: {ex.Message}");
+    }
+})
+.WithName("ObtenerCompaniasConDatos");
+
+// =============================================
+// ENDPOINT: Obtener datos de reporte
+// =============================================
+app.MapGet("/api/reporte", async (string? companias, int? año) =>
+{
+    try
+    {
+        if (string.IsNullOrEmpty(companias) || !año.HasValue)
+        {
+            return Results.BadRequest(new { error = "Se requieren los parámetros 'companias' y 'año'" });
+        }
+
+        // Convertir string de compañías separadas por coma a lista de IDs
+        var listaCompanias = companias.Split(',').Select(int.Parse).ToList();
+        var companiasParam = string.Join(",", listaCompanias);
+
+        using var connection = new SqlConnection(connectionStringRMF);
+        await connection.OpenAsync();
+
+        // Query para ACTIVOS EXTRANJEROS
+        var queryExtranjeros = @"
+            SELECT
+                cc.Nombre_Compania,
+                c.ID_Compania,
+                c.ID_NUM_ACTIVO AS Folio,
+                s.ID_ACTIVO AS Placa,
+                s.DESCRIPCION,
+                s.Nombre_TipoActivo AS Tipo,
+                s.FECHA_COMPRA AS Fecha_Adquisicion,
+                s.FECHA_BAJA AS Fecha_Baja,
+                c.MOI,
+                c.Tasa_Anual AS Anual_Rate,
+                c.Tasa_Mensual AS Month_Rate,
+                c.Dep_Anual AS Deprec_Anual,
+                c.Meses_Uso_Inicio_Ejercicio AS Meses_Uso_Al_Inicio_Ejercicio,
+                c.Meses_Uso_Hasta_Mitad_Periodo AS Meses_Uso_Hasta_Mitad_Periodo,
+                c.Meses_Uso_En_Ejercicio AS Meses_Uso_En_Ejercicio,
+                c.Dep_Acum_Inicio AS Dep_Fiscal_Acumulada_Inicio_Año,
+                c.Saldo_Inicio_Año AS Saldo_Por_Deducir_ISR_Al_Inicio_Año,
+                c.Dep_Fiscal_Ejercicio AS Depreciacion_Fiscal_Del_Ejercicio,
+                c.Monto_Pendiente AS Monto_Pendiente_Por_Deducir,
+                c.Proporcion AS Proporcion_Monto_Pendiente_Por_Deducir,
+                c.Prueba_10_Pct_MOI AS Prueba_Del_10_Pct_MOI,
+                c.Tipo_Cambio_30_Junio AS Tipo_Cambio_30_Junio,
+                c.Valor_Reportable_MXN AS Valor_Proporcional_Año_Pesos,
+                c.Descripcion_Ruta AS Observaciones
+            FROM dbo.Calculo_RMF c
+            INNER JOIN dbo.Staging_Activo s ON c.ID_Staging = s.ID_Staging
+            INNER JOIN dbo.ConfiguracionCompania cc ON c.ID_Compania = cc.ID_Compania
+            WHERE c.ID_Compania IN (" + companiasParam + @")
+              AND c.Año_Calculo = @AñoCalculo
+              AND c.Tipo_Activo = 'Extranjero'
+              AND c.Fecha_Calculo = (
+                  SELECT MAX(c2.Fecha_Calculo)
+                  FROM dbo.Calculo_RMF c2
+                  WHERE c2.ID_Compania = c.ID_Compania
+                    AND c2.Año_Calculo = c.Año_Calculo
+                    AND c2.Tipo_Activo = c.Tipo_Activo
+              )
+            ORDER BY cc.Nombre_Compania, c.ID_NUM_ACTIVO";
+
+        // Query para ACTIVOS NACIONALES (MEXICANOS)
+        var queryNacionales = @"
+            SELECT
+                cc.Nombre_Compania,
+                c.ID_Compania,
+                c.ID_NUM_ACTIVO AS Folio,
+                s.ID_ACTIVO AS Placa,
+                s.DESCRIPCION,
+                s.Nombre_TipoActivo AS Tipo,
+                s.FECHA_COMPRA AS Fecha_Adquisicion,
+                s.FECHA_BAJA AS Fecha_Baja,
+                c.MOI,
+                c.Tasa_Anual AS Anual_Rate,
+                c.Tasa_Mensual AS Month_Rate,
+                c.Dep_Anual AS Deprec_Anual,
+                c.Meses_Uso_Inicio_Ejercicio AS Meses_Uso_Al_Ejercicio_Anterior,
+                c.Meses_Uso_En_Ejercicio AS Meses_Uso_En_Ejercicio,
+                c.Dep_Acum_Inicio AS Dep_Fiscal_Acumulada_Inicio_Año,
+                c.Saldo_Inicio_Año AS Saldo_Por_Deducir_ISR_Al_Inicio_Año,
+                c.INPC_Adqu AS INPC_Adquisicion,
+                c.INPC_Mitad_Ejercicio AS INPC_Mitad_Ejercicio,
+                -- Factor de actualización paso 1
+                CASE
+                    WHEN c.INPC_Adqu > 0 THEN ROUND(c.INPC_Mitad_Ejercicio / c.INPC_Adqu, 4)
+                    ELSE NULL
+                END AS Factor_Actualizacion_Paso1,
+                -- Saldo actualizado paso 1
+                CASE
+                    WHEN c.INPC_Adqu > 0 THEN c.Saldo_Inicio_Año * ROUND(c.INPC_Mitad_Ejercicio / c.INPC_Adqu, 4)
+                    ELSE c.Saldo_Inicio_Año
+                END AS Saldo_Actualizado_Paso1,
+                c.Dep_Fiscal_Ejercicio AS Depreciacion_Fiscal_Del_Ejercicio,
+                c.INPC_Adqu AS INPC_Adqu_Paso2,
+                c.INPC_Mitad_Periodo AS INPC_Mitad_Periodo,
+                -- Factor de actualización paso 2
+                CASE
+                    WHEN c.INPC_Adqu > 0 THEN ROUND(c.INPC_Mitad_Periodo / c.INPC_Adqu, 4)
+                    ELSE NULL
+                END AS Factor_Actualizacion_Paso2,
+                -- Depreciación fiscal actualizada
+                CASE
+                    WHEN c.INPC_Adqu > 0 THEN c.Dep_Fiscal_Ejercicio * ROUND(c.INPC_Mitad_Periodo / c.INPC_Adqu, 4)
+                    ELSE c.Dep_Fiscal_Ejercicio
+                END AS Depreciacion_Fiscal_Actualizada,
+                -- 50% de la depreciación fiscal
+                CASE
+                    WHEN c.INPC_Adqu > 0 THEN (c.Dep_Fiscal_Ejercicio * ROUND(c.INPC_Mitad_Periodo / c.INPC_Adqu, 4)) * 0.5
+                    ELSE c.Dep_Fiscal_Ejercicio * 0.5
+                END AS Mitad_Depreciacion_Fiscal,
+                -- Valor promedio (paso 3)
+                c.Monto_Pendiente AS Valor_Promedio,
+                c.Proporcion AS Valor_Promedio_Proporcional_Año,
+                -- Saldo fiscal histórico y actualizado
+                (c.MOI - c.Dep_Acum_Inicio - c.Dep_Fiscal_Ejercicio) AS Saldo_Fiscal_Por_Deducir_Historico,
+                CASE
+                    WHEN c.INPC_Adqu > 0 THEN (c.MOI - c.Dep_Acum_Inicio - c.Dep_Fiscal_Ejercicio) * ROUND(c.INPC_Mitad_Periodo / c.INPC_Adqu, 4)
+                    ELSE (c.MOI - c.Dep_Acum_Inicio - c.Dep_Fiscal_Ejercicio)
+                END AS Saldo_Fiscal_Por_Deducir_Actualizado,
+                CASE
+                    WHEN s.FECHA_BAJA IS NOT NULL THEN 'B'
+                    ELSE 'A'
+                END AS Estado_Activo_Baja,
+                c.Descripcion_Ruta AS Observaciones
+            FROM dbo.Calculo_RMF c
+            INNER JOIN dbo.Staging_Activo s ON c.ID_Staging = s.ID_Staging
+            INNER JOIN dbo.ConfiguracionCompania cc ON c.ID_Compania = cc.ID_Compania
+            WHERE c.ID_Compania IN (" + companiasParam + @")
+              AND c.Año_Calculo = @AñoCalculo
+              AND c.Tipo_Activo = 'Nacional'
+              AND c.Fecha_Calculo = (
+                  SELECT MAX(c2.Fecha_Calculo)
+                  FROM dbo.Calculo_RMF c2
+                  WHERE c2.ID_Compania = c.ID_Compania
+                    AND c2.Año_Calculo = c.Año_Calculo
+                    AND c2.Tipo_Activo = c.Tipo_Activo
+              )
+            ORDER BY cc.Nombre_Compania, c.ID_NUM_ACTIVO";
+
+        // Ejecutar query para extranjeros
+        var extranjeros = new List<object>();
+        using (var command = new SqlCommand(queryExtranjeros, connection))
+        {
+            command.Parameters.AddWithValue("@AñoCalculo", año.Value);
+
+            using var reader = await command.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                extranjeros.Add(new
+                {
+                    nombreCompania = reader.IsDBNull(0) ? null : reader.GetString(0),
+                    idCompania = reader.GetInt32(1),
+                    folio = reader.IsDBNull(2) ? (int?)null : reader.GetInt32(2),
+                    placa = reader.IsDBNull(3) ? null : reader.GetString(3),
+                    descripcion = reader.IsDBNull(4) ? null : reader.GetString(4),
+                    tipo = reader.IsDBNull(5) ? null : reader.GetString(5),
+                    fechaAdquisicion = reader.IsDBNull(6) ? (DateTime?)null : reader.GetDateTime(6),
+                    fechaBaja = reader.IsDBNull(7) ? (DateTime?)null : reader.GetDateTime(7),
+                    moi = reader.GetDecimal(8),
+                    anualRate = reader.IsDBNull(9) ? (decimal?)null : reader.GetDecimal(9),
+                    monthRate = reader.IsDBNull(10) ? (decimal?)null : reader.GetDecimal(10),
+                    deprecAnual = reader.IsDBNull(11) ? (decimal?)null : reader.GetDecimal(11),
+                    mesesUsoAlInicioEjercicio = reader.GetInt32(12),
+                    mesesUsoHastaMitadPeriodo = reader.GetInt32(13),
+                    mesesUsoEnEjercicio = reader.GetInt32(14),
+                    depFiscalAcumuladaInicioAño = reader.GetDecimal(15),
+                    saldoPorDeducirISRAlInicioAño = reader.GetDecimal(16),
+                    depreciacionFiscalDelEjercicio = reader.GetDecimal(17),
+                    montoPendientePorDeducir = reader.IsDBNull(18) ? (decimal?)null : reader.GetDecimal(18),
+                    proporcionMontoPendientePorDeducir = reader.IsDBNull(19) ? (decimal?)null : reader.GetDecimal(19),
+                    pruebaDel10PctMOI = reader.IsDBNull(20) ? (decimal?)null : reader.GetDecimal(20),
+                    tipoCambio30Junio = reader.IsDBNull(21) ? (decimal?)null : reader.GetDecimal(21),
+                    valorProporcionalAñoPesos = reader.GetDecimal(22),
+                    observaciones = reader.IsDBNull(23) ? null : reader.GetString(23)
+                });
+            }
+        }
+
+        // Ejecutar query para nacionales
+        var nacionales = new List<object>();
+        using (var command = new SqlCommand(queryNacionales, connection))
+        {
+            command.Parameters.AddWithValue("@AñoCalculo", año.Value);
+
+            using var reader = await command.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                nacionales.Add(new
+                {
+                    nombreCompania = reader.IsDBNull(0) ? null : reader.GetString(0),
+                    idCompania = reader.GetInt32(1),
+                    folio = reader.IsDBNull(2) ? (int?)null : reader.GetInt32(2),
+                    placa = reader.IsDBNull(3) ? null : reader.GetString(3),
+                    descripcion = reader.IsDBNull(4) ? null : reader.GetString(4),
+                    tipo = reader.IsDBNull(5) ? null : reader.GetString(5),
+                    fechaAdquisicion = reader.IsDBNull(6) ? (DateTime?)null : reader.GetDateTime(6),
+                    fechaBaja = reader.IsDBNull(7) ? (DateTime?)null : reader.GetDateTime(7),
+                    moi = reader.GetDecimal(8),
+                    anualRate = reader.IsDBNull(9) ? (decimal?)null : reader.GetDecimal(9),
+                    monthRate = reader.IsDBNull(10) ? (decimal?)null : reader.GetDecimal(10),
+                    deprecAnual = reader.IsDBNull(11) ? (decimal?)null : reader.GetDecimal(11),
+                    mesesUsoAlEjercicioAnterior = reader.GetInt32(12),
+                    mesesUsoEnEjercicio = reader.GetInt32(13),
+                    depFiscalAcumuladaInicioAño = reader.GetDecimal(14),
+                    saldoPorDeducirISRAlInicioAño = reader.GetDecimal(15),
+                    inpcAdquisicion = reader.IsDBNull(16) ? (decimal?)null : reader.GetDecimal(16),
+                    inpcMitadEjercicio = reader.IsDBNull(17) ? (decimal?)null : reader.GetDecimal(17),
+                    factorActualizacionPaso1 = reader.IsDBNull(18) ? (decimal?)null : reader.GetDecimal(18),
+                    saldoActualizadoPaso1 = reader.IsDBNull(19) ? (decimal?)null : reader.GetDecimal(19),
+                    depreciacionFiscalDelEjercicio = reader.GetDecimal(20),
+                    inpcAdquPaso2 = reader.IsDBNull(21) ? (decimal?)null : reader.GetDecimal(21),
+                    inpcMitadPeriodo = reader.IsDBNull(22) ? (decimal?)null : reader.GetDecimal(22),
+                    factorActualizacionPaso2 = reader.IsDBNull(23) ? (decimal?)null : reader.GetDecimal(23),
+                    depreciacionFiscalActualizada = reader.IsDBNull(24) ? (decimal?)null : reader.GetDecimal(24),
+                    mitadDepreciacionFiscal = reader.IsDBNull(25) ? (decimal?)null : reader.GetDecimal(25),
+                    valorPromedio = reader.IsDBNull(26) ? (decimal?)null : reader.GetDecimal(26),
+                    valorPromedioProporcionalAño = reader.IsDBNull(27) ? (decimal?)null : reader.GetDecimal(27),
+                    saldoFiscalPorDeducirHistorico = reader.IsDBNull(28) ? (decimal?)null : reader.GetDecimal(28),
+                    saldoFiscalPorDeducirActualizado = reader.IsDBNull(29) ? (decimal?)null : reader.GetDecimal(29),
+                    estadoActivoBaja = reader.IsDBNull(30) ? null : reader.GetString(30),
+                    observaciones = reader.IsDBNull(31) ? null : reader.GetString(31)
+                });
+            }
+        }
+
+        return Results.Ok(new
+        {
+            extranjeros = extranjeros,
+            nacionales = nacionales,
+            totales = new
+            {
+                totalExtranjeros = extranjeros.Count,
+                totalNacionales = nacionales.Count,
+                totalGeneral = extranjeros.Count + nacionales.Count
+            }
+        });
     }
     catch (Exception ex)
     {
@@ -1064,5 +1287,5 @@ app.Run();
 
 // DTOs
 public record ETLRequest(int IdCompania, int AñoCalculo, string? Usuario, int? MaxRegistros);
-public record CalculoRequest(int IdCompania, int AñoCalculo, Guid LoteImportacion, string? Usuario);
+public record CalculoRequest(int IdCompania, int AñoCalculo, string? Usuario);
 public record CompaniaRequest(int IdCompania, string NombreCompania, string NombreCorto, string ConnectionString, bool Activo);

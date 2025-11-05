@@ -75,7 +75,20 @@ BEGIN
         SET @ID_Log = SCOPE_IDENTITY();
 
         -- =============================================
-        -- 3. CONSTRUIR QUERY DINÁMICO
+        -- 3. LIMPIAR DATOS ANTERIORES
+        -- =============================================
+
+        PRINT 'Limpiando datos anteriores de Staging_Activo...';
+
+        DELETE FROM Actif_RMF.dbo.Staging_Activo
+        WHERE ID_Compania = @ID_Compania
+          AND Año_Calculo = @Año_Calculo;
+
+        PRINT 'Registros eliminados: ' + CAST(@@ROWCOUNT AS VARCHAR);
+        PRINT '';
+
+        -- =============================================
+        -- 4. CONSTRUIR QUERY DINÁMICO
         -- =============================================
 
         -- Query para extraer activos de la base de datos origen
@@ -83,7 +96,7 @@ BEGIN
         SET @SQL = N'
         INSERT INTO Actif_RMF.dbo.Staging_Activo
             (ID_Compania, ID_NUM_ACTIVO, ID_ACTIVO, ID_TIPO_ACTIVO, ID_SUBTIPO_ACTIVO,
-             Nombre_TipoActivo, DESCRIPCION, COSTO_ADQUISICION, ID_MONEDA, Nombre_Moneda,
+             Nombre_TipoActivo, DESCRIPCION, ID_MONEDA, Nombre_Moneda,
              ID_PAIS, Nombre_Pais, FECHA_COMPRA, FECHA_BAJA, FECHA_INICIO_DEP, STATUS,
              FLG_PROPIO, Tasa_Anual, Tasa_Mensual, Dep_Acum_Inicio_Año,
              INPC_Adquisicion, INPC_Mitad_Ejercicio,
@@ -99,7 +112,6 @@ BEGIN
             a.DESCRIPCION,
 
             -- Datos financieros
-            a.COSTO_ADQUISICION AS MOI,
             a.ID_MONEDA,
             m.NOMBRE AS Nombre_Moneda,
 
@@ -117,8 +129,9 @@ BEGIN
             a.FLG_PROPIO,
 
             -- Tasa de depreciación FISCAL
-            pd.PORCENTAJE AS Tasa_Anual,
-            pd.PORCENTAJE / 12.0 AS Tasa_Mensual,
+            -- FIX: Convertir de porcentaje entero (8) a decimal (0.08)
+            pd.PORCENTAJE / 100.0 AS Tasa_Anual,
+            pd.PORCENTAJE / 1200.0 AS Tasa_Mensual,
 
             -- Depreciación acumulada al INICIO del año (Dic año anterior)
             ISNULL(c.ACUMULADO_HISTORICA, 0) AS Dep_Acum_Inicio_Año,
@@ -177,23 +190,27 @@ BEGIN
         ) AS c ON a.ID_NUM_ACTIVO = c.ID_NUM_ACTIVO
 
         -- INPC de adquisición (solo para mexicanos, ID_PAIS = 1)
+        -- FIX: Agregar filtro Id_Grupo_Simulacion = 8
         LEFT JOIN OPENROWSET(
             ''SQLNCLI'',
             ''' + @ConnectionString + ''',
-            ''SELECT * FROM INPC2 WHERE Id_Pais = 1 AND Id_Tipo_Dep = 2''
+            ''SELECT * FROM INPC2 WHERE Id_Pais = 1 AND Id_Tipo_Dep = 2 AND Id_Grupo_Simulacion = 8''
         ) AS inpc_adq
             ON YEAR(a.FECHA_COMPRA) = inpc_adq.Anio
             AND MONTH(a.FECHA_COMPRA) = inpc_adq.Mes
 
         -- INPC de mitad del ejercicio (junio del año actual)
+        -- FIX: Agregar filtro Id_Grupo_Simulacion = 8
         LEFT JOIN OPENROWSET(
             ''SQLNCLI'',
             ''' + @ConnectionString + ''',
-            ''SELECT * FROM INPC2 WHERE Anio = ' + CAST(@Año_Calculo AS VARCHAR) + ' AND Mes = 6 AND Id_Pais = 1 AND Id_Tipo_Dep = 2''
+            ''SELECT * FROM INPC2 WHERE Anio = ' + CAST(@Año_Calculo AS VARCHAR) + ' AND Mes = 6 AND Id_Pais = 1 AND Id_Tipo_Dep = 2 AND Id_Grupo_Simulacion = 8''
         ) AS inpc_mitad ON 1=1
 
         WHERE a.FLG_PROPIO = 0  -- *** FILTRO CRÍTICO: Solo NO propios ***
-          AND a.STATUS = ''A''  -- Solo activos activos
+          -- Incluir activos activos (A) Y activos dados de baja en el ejercicio (B)
+          AND (a.STATUS = ''A'' OR
+               (a.STATUS = ''B'' AND a.FECHA_BAJA >= CAST(''' + CAST(@Año_Calculo AS VARCHAR) + '-01-01'' AS DATE)))
           AND (a.FECHA_COMPRA IS NULL OR a.FECHA_COMPRA <= CAST(''' + CAST(@Año_Calculo AS VARCHAR) + '-12-31'' AS DATE))
           AND (a.FECHA_BAJA IS NULL OR a.FECHA_BAJA >= CAST(''' + CAST(@Año_Calculo AS VARCHAR) + '-01-01'' AS DATE))
           AND ISNULL(pd.PORCENTAJE, 0) > 0; -- Excluir terrenos y activos sin tasa
@@ -203,7 +220,7 @@ BEGIN
         PRINT '';
 
         -- =============================================
-        -- 4. EJECUTAR IMPORTACIÓN
+        -- 5. EJECUTAR IMPORTACIÓN
         -- =============================================
 
         EXEC sp_executesql @SQL,
@@ -217,7 +234,7 @@ BEGIN
         PRINT 'Registros importados: ' + CAST(@Registros_Procesados AS VARCHAR);
 
         -- =============================================
-        -- 5. ACTUALIZAR LOG CON ÉXITO
+        -- 6. ACTUALIZAR LOG CON ÉXITO
         -- =============================================
 
         UPDATE dbo.Log_Ejecucion_ETL

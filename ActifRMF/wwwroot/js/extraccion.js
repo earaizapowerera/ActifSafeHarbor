@@ -1,6 +1,8 @@
 // Extracción ETL JavaScript
 
-document.addEventListener('DOMContentLoaded', async function() {
+async function initExtraccion() {
+    console.log('[initExtraccion] Inicializando página de extracción...');
+
     // Limpiar registros huérfanos al cargar la página
     try {
         await fetch('/api/etl/limpiar-huerfanos', { method: 'POST' });
@@ -11,8 +13,18 @@ document.addEventListener('DOMContentLoaded', async function() {
     cargarCompanias();
     cargarHistorial();
 
-    document.getElementById('formExtraccion').addEventListener('submit', ejecutarETL);
-});
+    const form = document.getElementById('formExtraccion');
+    if (form) {
+        form.addEventListener('submit', ejecutarETL);
+    }
+}
+
+// Ejecutar inmediatamente si DOM ya está listo, o esperar al evento
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initExtraccion);
+} else {
+    initExtraccion();
+}
 
 async function cargarCompanias() {
     try {
@@ -20,22 +32,37 @@ async function cargarCompanias() {
         if (!response.ok) throw new Error('Error al cargar compañías');
 
         const companias = await response.json();
-        const select = document.getElementById('companiaSelect');
+        const checklist = document.getElementById('companiasChecklist');
 
         // Filter only active companies
         const activas = companias.filter(c => c.activo);
 
         if (activas.length === 0) {
-            select.innerHTML = '<option value="">No hay compañías activas</option>';
+            checklist.innerHTML = '<div class="text-center text-muted">No hay compañías activas</div>';
             return;
         }
 
-        select.innerHTML = '<option value="">Seleccione una compañía...</option>' +
-            activas.map(c => `<option value="${c.idCompania}">${c.nombreCompania}</option>`).join('');
+        checklist.innerHTML = activas.map(c => `
+            <div class="form-check">
+                <input class="form-check-input" type="checkbox" value="${c.idCompania}" id="comp${c.idCompania}" data-nombre="${c.nombreCompania}" style="cursor: pointer;">
+                <label class="form-check-label" for="comp${c.idCompania}" style="cursor: pointer;">
+                    ${c.nombreCompania} <small class="text-muted">(${c.nombreCorto})</small>
+                </label>
+            </div>
+        `).join('');
+
+        console.log(`✓ Cargadas ${activas.length} compañías con checkboxes habilitados`);
 
     } catch (error) {
         console.error('Error:', error);
-        document.getElementById('companiaSelect').innerHTML = '<option value="">Error al cargar</option>';
+
+        // Detectar errores de conexión, timeout o red
+        let mensajeError = 'Error al cargar compañías';
+        if (error.name === 'TypeError' || error.message.includes('fetch') || error.message.includes('NetworkError')) {
+            mensajeError = 'No se pudo conectar a la base de datos';
+        }
+
+        document.getElementById('companiasChecklist').innerHTML = `<div class="text-danger">${mensajeError}</div>`;
     }
 }
 
@@ -46,23 +73,40 @@ async function ejecutarETL(event) {
     event.preventDefault();
 
     const btnEjecutar = document.getElementById('btnEjecutar');
-    const idCompania = parseInt(document.getElementById('companiaSelect').value);
     const añoCalculo = parseInt(document.getElementById('anioCalculo').value);
     const usuario = document.getElementById('usuario').value;
     const maxRegistrosInput = document.getElementById('maxRegistros').value;
     const maxRegistros = maxRegistrosInput ? parseInt(maxRegistrosInput) : null;
 
-    if (!idCompania) {
-        alert('Debe seleccionar una compañía');
+    // Get selected companies
+    const checkboxes = document.querySelectorAll('#companiasChecklist input[type="checkbox"]:checked');
+
+    if (checkboxes.length === 0) {
+        alert('Debe seleccionar al menos una compañía');
         return;
     }
 
-    const data = {
-        idCompania: idCompania,
-        añoCalculo: añoCalculo,
-        usuario: usuario,
-        maxRegistros: maxRegistros
-    };
+    const companias = Array.from(checkboxes).map(cb => ({
+        id: parseInt(cb.value),
+        nombre: cb.getAttribute('data-nombre')
+    }));
+
+    // Mostrar plan de ejecución
+    const plan = `
+        <h6>Plan de Ejecución:</h6>
+        <ul>
+            ${companias.map(c => `<li>${c.nombre} (ID: ${c.id})</li>`).join('')}
+        </ul>
+        <p><strong>Año:</strong> ${añoCalculo}</p>
+        <p><strong>Total:</strong> ${companias.length} compañía(s)</p>
+        ${maxRegistros ? `<p class="text-warning"><strong>⚠️ Modo TEST:</strong> Límite de ${maxRegistros} registros</p>` : ''}
+    `;
+
+    const confirmacion = confirm(`Se procesarán ${companias.length} compañía(s) en secuencia:\n\n${companias.map(c => `  • ${c.nombre}`).join('\n')}\n\n¿Desea continuar?`);
+
+    if (!confirmacion) {
+        return;
+    }
 
     // Disable button and show loading
     btnEjecutar.disabled = true;
@@ -74,48 +118,98 @@ async function ejecutarETL(event) {
     // Show progress bar
     mostrarBarraProgreso();
 
+    const resultados = [];
+    let todasExitosas = true;
+
     try {
-        const response = await fetch('/api/etl/ejecutar', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(data)
-        });
+        // Procesar cada compañía en secuencia
+        for (let i = 0; i < companias.length; i++) {
+            const compania = companias[i];
+            console.log(`[${i+1}/${companias.length}] Procesando ${compania.nombre}...`);
 
-        const result = await response.json();
+            btnEjecutar.innerHTML = `<i class="fas fa-spinner fa-spin"></i> [${i+1}/${companias.length}] ${compania.nombre}...`;
 
-        if (!response.ok) {
-            throw new Error(result.detail || result.message || 'Error desconocido');
+            const data = {
+                idCompania: compania.id,
+                añoCalculo: añoCalculo,
+                usuario: usuario,
+                maxRegistros: maxRegistros
+            };
+
+            try {
+                const response = await fetch('/api/etl/ejecutar', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(data)
+                });
+
+                const result = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(result.detail || result.message || 'Error desconocido');
+                }
+
+                // Verificar que tenemos un lote válido
+                if (!result.loteImportacion) {
+                    throw new Error('No se recibió un lote de importación válido del servidor');
+                }
+
+                console.log(`  ✓ ETL iniciado con lote: ${result.loteImportacion}`);
+
+                // ETL started - begin monitoring progress
+                iniciarMonitoreoProgreso(result.loteImportacion);
+
+                // Wait for completion by polling
+                await esperarCompletado(result.loteImportacion);
+
+                // Stop progress monitoring
+                if (progressInterval) {
+                    clearInterval(progressInterval);
+                    progressInterval = null;
+                }
+
+                // Get final result
+                const finalProgreso = await fetch(`/api/etl/progreso/${result.loteImportacion}`);
+                const finalResult = await finalProgreso.json();
+
+                resultados.push({
+                    compania: compania.nombre,
+                    exitoso: true,
+                    resultado: finalResult
+                });
+
+                console.log(`  ✓ ${compania.nombre} completado exitosamente`);
+
+            } catch (error) {
+                console.error(`  ✗ Error en ${compania.nombre}:`, error);
+                resultados.push({
+                    compania: compania.nombre,
+                    exitoso: false,
+                    error: error.message
+                });
+                todasExitosas = false;
+            }
         }
 
-        // ETL started - begin monitoring progress
-        iniciarMonitoreoProgreso(result.loteImportacion);
-
-        // Wait for completion by polling
-        await esperarCompletado(result.loteImportacion);
-
-        // Stop progress monitoring
+        // Stop progress monitoring (por si acaso)
         if (progressInterval) {
             clearInterval(progressInterval);
             progressInterval = null;
         }
 
-        // Get final result
-        const finalProgreso = await fetch(`/api/etl/progreso/${result.loteImportacion}`);
-        const finalResult = await finalProgreso.json();
-
         // Hide progress bar
         ocultarBarraProgreso();
 
-        // Show success result
-        mostrarResultadoFinal(finalResult, result);
+        // Show combined results
+        mostrarResultadosMultiples(resultados, todasExitosas);
 
         // Reload history
         cargarHistorial();
 
     } catch (error) {
-        console.error('Error:', error);
+        console.error('Error general:', error);
 
         // Stop progress monitoring
         if (progressInterval) {
@@ -298,7 +392,7 @@ function iniciarMonitoreoProgreso(loteImportacion) {
         pollCount++;
         try {
             console.log(`[Poll #${pollCount}] Consultando progreso para lote: ${loteImportacion}`);
-            const response = await fetch(`/api/etl/progreso/${loteImportacion}`);
+            const response = await fetch(`/api/etl/progreso/${loteImportacion}?nocache=${Date.now()}`);
 
             console.log(`[Poll #${pollCount}] Response status: ${response.status}`);
 
@@ -360,11 +454,22 @@ function actualizarBarraProgreso(progreso) {
 async function esperarCompletado(loteImportacion) {
     return new Promise((resolve, reject) => {
         let checkCount = 0;
+        const maxChecks = 36; // 36 * 5 seg = 3 minutos máximo
+
         const checkInterval = setInterval(async () => {
             checkCount++;
+
+            // Timeout después de 3 minutos
+            if (checkCount > maxChecks) {
+                console.error(`[esperarCompletado] TIMEOUT después de ${checkCount} intentos`);
+                clearInterval(checkInterval);
+                reject(new Error('Timeout: El ETL tomó más de 3 minutos. Verifica el log del servidor.'));
+                return;
+            }
+
             try {
                 console.log(`[esperarCompletado #${checkCount}] Verificando completado para lote: ${loteImportacion}`);
-                const response = await fetch(`/api/etl/progreso/${loteImportacion}`);
+                const response = await fetch(`/api/etl/progreso/${loteImportacion}?nocache=${Date.now()}`);
                 if (response.ok) {
                     const progreso = await response.json();
                     console.log(`[esperarCompletado #${checkCount}] Estado recibido:`, progreso.estado, 'Objeto completo:', progreso);
@@ -378,6 +483,7 @@ async function esperarCompletado(loteImportacion) {
                     }
                 } else {
                     console.error(`[esperarCompletado #${checkCount}] Error HTTP: ${response.status}`);
+                    // No rechazar inmediatamente, continuar intentando
                 }
             } catch (error) {
                 console.error(`[esperarCompletado #${checkCount}] Error:`, error);
@@ -453,6 +559,89 @@ function mostrarResultadoFinal(progreso, initialResult) {
         `;
     }
 
+    resultadoDiv.style.display = 'block';
+    resultadoDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function mostrarResultadosMultiples(resultados, todasExitosas) {
+    const resultadoDiv = document.getElementById('resultadoDiv');
+    const resultadoCard = document.getElementById('resultadoCard');
+    const resultadoContent = document.getElementById('resultadoContent');
+
+    if (todasExitosas) {
+        resultadoCard.classList.remove('border-danger');
+        resultadoCard.classList.add('border-success');
+        resultadoCard.querySelector('.card-header').classList.remove('bg-danger');
+        resultadoCard.querySelector('.card-header').classList.add('bg-success', 'text-white');
+        resultadoCard.querySelector('.card-header h5').innerHTML = '<i class="fas fa-check-circle"></i> ETL Múltiple - Todas exitosas';
+    } else {
+        resultadoCard.classList.remove('border-success');
+        resultadoCard.classList.add('border-warning');
+        resultadoCard.querySelector('.card-header').classList.remove('bg-success');
+        resultadoCard.querySelector('.card-header').classList.add('bg-warning', 'text-dark');
+        resultadoCard.querySelector('.card-header h5').innerHTML = '<i class="fas fa-exclamation-triangle"></i> ETL Múltiple - Con errores';
+    }
+
+    const exitosas = resultados.filter(r => r.exitoso).length;
+    const fallidas = resultados.length - exitosas;
+    const totalRegistros = resultados.filter(r => r.exitoso).reduce((sum, r) => sum + (r.resultado?.registrosInsertados || 0), 0);
+
+    let html = `
+        <div class="alert ${todasExitosas ? 'alert-success' : 'alert-warning'}">
+            <h5><i class="fas ${todasExitosas ? 'fa-check-circle' : 'fa-exclamation-triangle'}"></i> Proceso completado</h5>
+            <p><strong>${exitosas}</strong> de <strong>${resultados.length}</strong> compañías procesadas exitosamente</p>
+            ${fallidas > 0 ? `<p class="text-danger"><strong>${fallidas}</strong> compañías con errores</p>` : ''}
+            <p><strong>Total registros importados:</strong> ${totalRegistros}</p>
+        </div>
+        <h6>Detalle por compañía:</h6>
+        <table class="table table-sm table-striped">
+            <thead class="table-dark">
+                <tr>
+                    <th>Compañía</th>
+                    <th>Estado</th>
+                    <th>Registros</th>
+                    <th>Duración</th>
+                </tr>
+            </thead>
+            <tbody>
+    `;
+
+    for (const resultado of resultados) {
+        if (resultado.exitoso) {
+            const progreso = resultado.resultado;
+            const duracionSegundos = progreso.fechaFin ?
+                Math.round((new Date(progreso.fechaFin) - new Date(progreso.fechaInicio)) / 1000) : 0;
+
+            html += `
+                <tr class="table-success">
+                    <td><strong>${resultado.compania}</strong></td>
+                    <td><span class="badge bg-success">${progreso.estado}</span></td>
+                    <td>${progreso.registrosInsertados || 0}</td>
+                    <td>${duracionSegundos}s</td>
+                </tr>
+            `;
+        } else {
+            html += `
+                <tr class="table-danger">
+                    <td><strong>${resultado.compania}</strong></td>
+                    <td><span class="badge bg-danger">Error</span></td>
+                    <td colspan="2"><small class="text-danger">${resultado.error}</small></td>
+                </tr>
+            `;
+        }
+    }
+
+    html += `
+            </tbody>
+        </table>
+        <div class="mt-3">
+            <a href="/calculo.html" class="btn btn-primary">
+                <i class="fas fa-calculator"></i> Ir a Cálculo
+            </a>
+        </div>
+    `;
+
+    resultadoContent.innerHTML = html;
     resultadoDiv.style.display = 'block';
     resultadoDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }

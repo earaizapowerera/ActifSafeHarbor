@@ -1,25 +1,15 @@
 // Reporte Safe Harbor JavaScript con AG-Grid
-// Múltiples compañías, grouping y exportación por hojas
+// Dos grids separados: Extranjeros y Nacionales
 
 let gridApiExtranjeros;
 let gridApiNacionales;
 let currentDataExtranjeros = [];
 let currentDataNacionales = [];
-let companiasList = [];
 
 document.addEventListener('DOMContentLoaded', function() {
+    cargarCompanias();
     inicializarAños();
     inicializarGrids();
-
-    // Cargar compañías cuando se selecciona un año
-    document.getElementById('añoSelect').addEventListener('change', function() {
-        const año = this.value;
-        if (año) {
-            cargarCompaniasPorAño(año);
-        } else {
-            document.getElementById('companiasContainer').innerHTML = '<div class="text-muted">Seleccione primero un año</div>';
-        }
-    });
 
     document.getElementById('btnCargarReporte').addEventListener('click', cargarReporte);
     document.getElementById('btnExportarExcel').addEventListener('click', exportarExcel);
@@ -29,59 +19,27 @@ function inicializarAños() {
     const añoSelect = document.getElementById('añoSelect');
     const añoActual = new Date().getFullYear();
 
-    añoSelect.innerHTML = '<option value="">Seleccionar año...</option>';
+    añoSelect.innerHTML = '<option value="">Seleccionar...</option>';
     for (let año = añoActual; año >= añoActual - 10; año--) {
         añoSelect.innerHTML += `<option value="${año}">${año}</option>`;
     }
 }
 
-async function cargarCompaniasPorAño(año) {
+async function cargarCompanias() {
     try {
-        console.log(`[reporte.js] Cargando compañías para año: ${año}`);
-        const container = document.getElementById('companiasContainer');
-        container.innerHTML = '<div class="text-muted"><i class="fas fa-spinner fa-spin"></i> Cargando compañías...</div>';
+        const response = await fetch(`/api/companias?v=${Date.now()}`);
+        if (!response.ok) throw new Error('Error al cargar compañías');
 
-        const url = `/api/reporte/companias-con-registros?a%C3%B1o=${encodeURIComponent(año)}&v=${Date.now()}`;
-        console.log(`[reporte.js] URL: ${url}`);
-        const response = await fetch(url);
-        if (!response.ok) {
-            console.error(`[reporte.js] Error en respuesta: ${response.status}`);
-            throw new Error('Error al cargar compañías');
-        }
+        const companias = await response.json();
+        const select = document.getElementById('companiaSelect');
 
-        companiasList = await response.json();
-        console.log(`[reporte.js] Compañías recibidas:`, companiasList);
-
-        if (companiasList.length === 0) {
-            container.innerHTML = '<div class="alert alert-warning">No hay compañías con registros calculados para este año</div>';
-            return;
-        }
-
-        let html = '<div class="mb-2"><input type="checkbox" id="selectAll" class="form-check-input me-2">';
-        html += '<label for="selectAll" class="form-check-label fw-bold">Seleccionar Todas</label></div><hr>';
-
-        companiasList.forEach(c => {
-            html += `
-                <div class="form-check mb-2">
-                    <input class="form-check-input compania-check" type="checkbox" value="${c.idCompania}" id="cia_${c.idCompania}">
-                    <label class="form-check-label" for="cia_${c.idCompania}">
-                        ${c.nombreCompania} <span class="badge bg-primary">${c.totalRegistros || 0} registros</span>
-                    </label>
-                </div>
-            `;
-        });
-
-        container.innerHTML = html;
-
-        // Manejar select all
-        document.getElementById('selectAll').addEventListener('change', function() {
-            document.querySelectorAll('.compania-check').forEach(cb => {
-                cb.checked = this.checked;
-            });
+        select.innerHTML = '<option value="">Seleccionar...</option>';
+        companias.forEach(c => {
+            select.innerHTML += `<option value="${c.idCompania}">${c.nombreCompania}</option>`;
         });
     } catch (error) {
         console.error('Error:', error);
-        document.getElementById('companiasContainer').innerHTML = '<div class="alert alert-danger">Error al cargar compañías</div>';
+        alert('Error al cargar las compañías');
     }
 }
 
@@ -93,25 +51,11 @@ function inicializarGrids() {
 function inicializarGridExtranjeros() {
     const columnDefs = [
         {
-            headerName: 'Compañía',
-            field: 'nombreCompania',
-            filter: 'agTextColumnFilter',
-            width: 200,
-            pinned: 'left',
-            rowGroup: true,  // Agrupar por compañía
-            hide: true       // Ocultar columna individual, solo mostrar grupos
-        },
-        {
-            headerName: 'Folio',
-            field: 'folio',
-            filter: 'agNumberColumnFilter',
-            width: 100
-        },
-        {
             headerName: 'Placa',
             field: 'placa',
             filter: 'agTextColumnFilter',
-            width: 150
+            width: 150,
+            pinned: 'left'
         },
         {
             headerName: 'Descripción',
@@ -127,7 +71,7 @@ function inicializarGridExtranjeros() {
         },
         {
             headerName: 'Fecha Adquisición',
-            field: 'fechaAdquisicion',
+            field: 'fecha_Adquisicion',
             filter: 'agDateColumnFilter',
             width: 150,
             valueFormatter: params => {
@@ -138,7 +82,7 @@ function inicializarGridExtranjeros() {
         },
         {
             headerName: 'Fecha Baja',
-            field: 'fechaBaja',
+            field: 'fecha_Baja',
             filter: 'agDateColumnFilter',
             width: 130,
             valueFormatter: params => {
@@ -153,12 +97,11 @@ function inicializarGridExtranjeros() {
             filter: 'agNumberColumnFilter',
             width: 140,
             type: 'numericColumn',
-            aggFunc: 'sum',  // Sumar en subtotales
             valueFormatter: params => params.value ? params.value.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : ''
         },
         {
             headerName: 'Anual Rate',
-            field: 'anualRate',
+            field: 'anual_Rate',
             filter: 'agNumberColumnFilter',
             width: 120,
             type: 'numericColumn',
@@ -166,7 +109,7 @@ function inicializarGridExtranjeros() {
         },
         {
             headerName: 'Month Rate',
-            field: 'monthRate',
+            field: 'month_Rate',
             filter: 'agNumberColumnFilter',
             width: 120,
             type: 'numericColumn',
@@ -174,91 +117,84 @@ function inicializarGridExtranjeros() {
         },
         {
             headerName: 'Deprec Anual',
-            field: 'deprecAnual',
+            field: 'deprec_Anual',
             filter: 'agNumberColumnFilter',
             width: 140,
             type: 'numericColumn',
-            aggFunc: 'sum',
             valueFormatter: params => params.value ? params.value.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : ''
         },
         {
             headerName: 'Meses Uso Inicio Ejerc.',
-            field: 'mesesUsoAlInicioEjercicio',
+            field: 'meses_Uso_Inicio_Ejercicio',
             filter: 'agNumberColumnFilter',
             width: 150,
             type: 'numericColumn'
         },
         {
             headerName: 'Meses Uso Hasta Mitad',
-            field: 'mesesUsoHastaMitadPeriodo',
+            field: 'meses_Uso_Hasta_Mitad_Periodo',
             filter: 'agNumberColumnFilter',
             width: 160,
             type: 'numericColumn'
         },
         {
             headerName: 'Meses Uso En Ejercicio',
-            field: 'mesesUsoEnEjercicio',
+            field: 'meses_Uso_En_Ejercicio',
             filter: 'agNumberColumnFilter',
             width: 150,
             type: 'numericColumn'
         },
         {
             headerName: 'Dep Fiscal Acum. Inicio Año',
-            field: 'depFiscalAcumuladaInicioAño',
+            field: 'dep_Fiscal_Acumulada_Inicio_Año',
             filter: 'agNumberColumnFilter',
             width: 180,
             type: 'numericColumn',
-            aggFunc: 'sum',
             valueFormatter: params => params.value ? params.value.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : ''
         },
         {
             headerName: 'Saldo Por Deducir ISR Inicio',
-            field: 'saldoPorDeducirISRAlInicioAño',
+            field: 'saldo_Por_Deducir_ISR_Al_Inicio_Año',
             filter: 'agNumberColumnFilter',
             width: 200,
             type: 'numericColumn',
-            aggFunc: 'sum',
             valueFormatter: params => params.value ? params.value.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : ''
         },
         {
             headerName: 'Dep Fiscal Ejercicio',
-            field: 'depreciacionFiscalDelEjercicio',
+            field: 'dep_Fiscal_Ejercicio',
             filter: 'agNumberColumnFilter',
             width: 150,
             type: 'numericColumn',
-            aggFunc: 'sum',
             valueFormatter: params => params.value ? params.value.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : ''
         },
         {
             headerName: 'Monto Pendiente',
-            field: 'montoPendientePorDeducir',
+            field: 'monto_Pendiente',
             filter: 'agNumberColumnFilter',
             width: 150,
             type: 'numericColumn',
-            aggFunc: 'sum',
             valueFormatter: params => params.value ? params.value.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : ''
         },
         {
             headerName: 'Proporción',
-            field: 'proporcionMontoPendientePorDeducir',
+            field: 'proporcion',
             filter: 'agNumberColumnFilter',
             width: 140,
             type: 'numericColumn',
-            aggFunc: 'sum',
             valueFormatter: params => params.value ? params.value.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : ''
         },
         {
             headerName: 'Prueba 10% MOI',
-            field: 'pruebaDel10PctMOI',
+            field: 'prueba_10_Pct_MOI',
             filter: 'agNumberColumnFilter',
             width: 140,
             type: 'numericColumn',
-            aggFunc: 'sum',
             valueFormatter: params => params.value ? params.value.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : ''
         },
         {
             headerName: 'Tipo Cambio 30 Junio',
-            field: 'tipoCambio30Junio',
+            field: 'tipo_Cambio_30_Junio',
             filter: 'agNumberColumnFilter',
             width: 160,
             type: 'numericColumn',
@@ -266,11 +202,10 @@ function inicializarGridExtranjeros() {
         },
         {
             headerName: 'Valor Reportable MXN',
-            field: 'valorProporcionalAñoPesos',
+            field: 'valor_Reportable_MXN',
             filter: 'agNumberColumnFilter',
             width: 180,
             type: 'numericColumn',
-            aggFunc: 'sum',
             valueFormatter: params => params.value ? '$' + params.value.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '',
             cellStyle: {'font-weight': 'bold', 'color': '#0d6efd'}
         },
@@ -290,22 +225,6 @@ function inicializarGridExtranjeros() {
             filter: true,
             floatingFilter: true
         },
-        autoGroupColumnDef: {
-            headerName: 'Compañía',
-            field: 'nombreCompania',
-            width: 250,
-            pinned: 'left',
-            cellRendererParams: {
-                suppressCount: false,  // Mostrar contador de registros
-                innerRenderer: params => {
-                    // Mostrar nombre de compañía en el grupo
-                    if (params.node.group) {
-                        return params.value || 'Sin compañía';
-                    }
-                    return params.value;
-                }
-            }
-        },
         pagination: true,
         paginationPageSize: 50,
         paginationPageSizeSelector: [20, 50, 100, 200],
@@ -313,10 +232,6 @@ function inicializarGridExtranjeros() {
         enableRangeSelection: true,
         suppressRowClickSelection: true,
         animateRows: true,
-        groupDisplayType: 'singleColumn',  // Mostrar grupos en una sola columna
-        groupDefaultExpanded: 1,            // Expandir primer nivel
-        groupIncludeTotalFooter: true,      // Mostrar totales al final
-        grandTotalRow: 'bottom',            // Total general al final
         overlayNoRowsTemplate: '<span style="padding: 20px; font-size: 16px; color: #666;">No hay activos extranjeros para mostrar</span>',
         onGridReady: function(params) {
             gridApiExtranjeros = params.api;
@@ -330,25 +245,11 @@ function inicializarGridExtranjeros() {
 function inicializarGridNacionales() {
     const columnDefs = [
         {
-            headerName: 'Compañía',
-            field: 'nombreCompania',
-            filter: 'agTextColumnFilter',
-            width: 200,
-            pinned: 'left',
-            rowGroup: true,  // Agrupar por compañía
-            hide: true       // Ocultar columna individual
-        },
-        {
-            headerName: 'Folio',
-            field: 'folio',
-            filter: 'agNumberColumnFilter',
-            width: 100
-        },
-        {
             headerName: 'Placa',
             field: 'placa',
             filter: 'agTextColumnFilter',
-            width: 150
+            width: 150,
+            pinned: 'left'
         },
         {
             headerName: 'Descripción',
@@ -364,7 +265,7 @@ function inicializarGridNacionales() {
         },
         {
             headerName: 'Fecha Adquisición',
-            field: 'fechaAdquisicion',
+            field: 'fecha_Adquisicion',
             filter: 'agDateColumnFilter',
             width: 150,
             valueFormatter: params => {
@@ -375,7 +276,7 @@ function inicializarGridNacionales() {
         },
         {
             headerName: 'Fecha Baja',
-            field: 'fechaBaja',
+            field: 'fecha_Baja',
             filter: 'agDateColumnFilter',
             width: 130,
             valueFormatter: params => {
@@ -390,12 +291,11 @@ function inicializarGridNacionales() {
             filter: 'agNumberColumnFilter',
             width: 140,
             type: 'numericColumn',
-            aggFunc: 'sum',
             valueFormatter: params => params.value ? params.value.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : ''
         },
         {
             headerName: 'Anual Rate',
-            field: 'anualRate',
+            field: 'anual_Rate',
             filter: 'agNumberColumnFilter',
             width: 120,
             type: 'numericColumn',
@@ -403,7 +303,7 @@ function inicializarGridNacionales() {
         },
         {
             headerName: 'Month Rate',
-            field: 'monthRate',
+            field: 'month_Rate',
             filter: 'agNumberColumnFilter',
             width: 120,
             type: 'numericColumn',
@@ -411,49 +311,46 @@ function inicializarGridNacionales() {
         },
         {
             headerName: 'Deprec Anual',
-            field: 'deprecAnual',
+            field: 'deprec_Anual',
             filter: 'agNumberColumnFilter',
             width: 140,
             type: 'numericColumn',
-            aggFunc: 'sum',
             valueFormatter: params => params.value ? params.value.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : ''
         },
         {
             headerName: 'Meses Uso Al Ejerc. Anterior',
-            field: 'mesesUsoAlEjercicioAnterior',
+            field: 'meses_Uso_Al_Ejercicio_Anterior',
             filter: 'agNumberColumnFilter',
             width: 180,
             type: 'numericColumn'
         },
         {
             headerName: 'Meses Uso En Ejercicio',
-            field: 'mesesUsoEnEjercicio',
+            field: 'meses_Uso_En_Ejercicio',
             filter: 'agNumberColumnFilter',
             width: 150,
             type: 'numericColumn'
         },
         {
             headerName: 'Dep Fiscal Acum. Inicio Año',
-            field: 'depFiscalAcumuladaInicioAño',
+            field: 'dep_Fiscal_Acumulada_Inicio_Año',
             filter: 'agNumberColumnFilter',
             width: 180,
             type: 'numericColumn',
-            aggFunc: 'sum',
             valueFormatter: params => params.value ? params.value.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : ''
         },
         {
             headerName: 'Saldo Por Deducir ISR Inicio',
-            field: 'saldoPorDeducirISRAlInicioAño',
+            field: 'saldo_Por_Deducir_ISR_Al_Inicio_Año',
             filter: 'agNumberColumnFilter',
             width: 200,
             type: 'numericColumn',
-            aggFunc: 'sum',
             valueFormatter: params => params.value ? params.value.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : ''
         },
         // PASO 1: INPC Actualización
         {
             headerName: 'INPC Adquisición',
-            field: 'inpcAdquisicion',
+            field: 'inpc_Adquisicion',
             filter: 'agNumberColumnFilter',
             width: 140,
             type: 'numericColumn',
@@ -462,7 +359,7 @@ function inicializarGridNacionales() {
         },
         {
             headerName: 'INPC Mitad Ejercicio',
-            field: 'inpcMitadEjercicio',
+            field: 'inpc_Mitad_Ejercicio',
             filter: 'agNumberColumnFilter',
             width: 150,
             type: 'numericColumn',
@@ -471,7 +368,7 @@ function inicializarGridNacionales() {
         },
         {
             headerName: 'Factor Actualiz. (P1)',
-            field: 'factorActualizacionPaso1',
+            field: 'factor_Actualizacion_Paso1',
             filter: 'agNumberColumnFilter',
             width: 160,
             type: 'numericColumn',
@@ -480,28 +377,26 @@ function inicializarGridNacionales() {
         },
         {
             headerName: 'Saldo Actualizado (P1)',
-            field: 'saldoActualizadoPaso1',
+            field: 'saldo_Actualizado_Paso1',
             filter: 'agNumberColumnFilter',
             width: 180,
             type: 'numericColumn',
-            aggFunc: 'sum',
             valueFormatter: params => params.value ? params.value.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '',
             cellStyle: {'background-color': '#e7f3ff', 'font-weight': 'bold'}
         },
         // PASO 2: Depreciación Actualizada
         {
             headerName: 'Dep Fiscal Ejercicio',
-            field: 'depreciacionFiscalDelEjercicio',
+            field: 'dep_Fiscal_Ejercicio',
             filter: 'agNumberColumnFilter',
             width: 150,
             type: 'numericColumn',
-            aggFunc: 'sum',
             valueFormatter: params => params.value ? params.value.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '',
             cellStyle: {'background-color': '#fff3cd'}
         },
         {
             headerName: 'INPC Adquisición (P2)',
-            field: 'inpcAdquPaso2',
+            field: 'inpc_Adqu_Paso2',
             filter: 'agNumberColumnFilter',
             width: 160,
             type: 'numericColumn',
@@ -510,7 +405,7 @@ function inicializarGridNacionales() {
         },
         {
             headerName: 'INPC Mitad Periodo',
-            field: 'inpcMitadPeriodo',
+            field: 'inpc_Mitad_Periodo',
             filter: 'agNumberColumnFilter',
             width: 150,
             type: 'numericColumn',
@@ -519,7 +414,7 @@ function inicializarGridNacionales() {
         },
         {
             headerName: 'Factor Actualiz. (P2)',
-            field: 'factorActualizacionPaso2',
+            field: 'factor_Actualizacion_Paso2',
             filter: 'agNumberColumnFilter',
             width: 160,
             type: 'numericColumn',
@@ -528,68 +423,62 @@ function inicializarGridNacionales() {
         },
         {
             headerName: 'Deprec Fiscal Actualizada',
-            field: 'depreciacionFiscalActualizada',
+            field: 'depreciacion_Fiscal_Actualizada',
             filter: 'agNumberColumnFilter',
             width: 180,
             type: 'numericColumn',
-            aggFunc: 'sum',
             valueFormatter: params => params.value ? params.value.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '',
             cellStyle: {'background-color': '#fff3cd', 'font-weight': 'bold'}
         },
         {
             headerName: '50% Deprec Fiscal',
-            field: 'mitadDepreciacionFiscal',
+            field: 'mitad_Depreciacion_Fiscal',
             filter: 'agNumberColumnFilter',
             width: 160,
             type: 'numericColumn',
-            aggFunc: 'sum',
             valueFormatter: params => params.value ? params.value.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '',
             cellStyle: {'background-color': '#fff3cd', 'font-weight': 'bold'}
         },
         // PASO 3: Valor Safe Harbor
         {
             headerName: 'Valor Promedio',
-            field: 'valorPromedio',
+            field: 'valor_Promedio',
             filter: 'agNumberColumnFilter',
             width: 140,
             type: 'numericColumn',
-            aggFunc: 'sum',
             valueFormatter: params => params.value ? params.value.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '',
             cellStyle: {'background-color': '#d1e7dd'}
         },
         {
             headerName: 'Valor Prom. Prop. Año',
-            field: 'valorPromedioProporcionalAño',
+            field: 'valor_Promedio_Proporcional_Año',
             filter: 'agNumberColumnFilter',
             width: 170,
             type: 'numericColumn',
-            aggFunc: 'sum',
             valueFormatter: params => params.value ? params.value.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '',
             cellStyle: {'background-color': '#d1e7dd', 'font-weight': 'bold', 'color': '#0d6efd'}
         },
         {
             headerName: 'Saldo Fiscal Deducir Hist.',
-            field: 'saldoFiscalPorDeducirHistorico',
+            field: 'saldo_Fiscal_Por_Deducir_Historico',
             filter: 'agNumberColumnFilter',
             width: 180,
             type: 'numericColumn',
-            aggFunc: 'sum',
             valueFormatter: params => params.value ? params.value.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '',
             cellStyle: {'background-color': '#d1e7dd'}
         },
         {
             headerName: 'Saldo Fiscal Deducir Actual.',
-            field: 'saldoFiscalPorDeducirActualizado',
+            field: 'saldo_Fiscal_Por_Deducir_Actualizado',
             filter: 'agNumberColumnFilter',
             width: 190,
             type: 'numericColumn',
-            aggFunc: 'sum',
             valueFormatter: params => params.value ? params.value.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '',
             cellStyle: {'background-color': '#d1e7dd'}
         },
         {
             headerName: 'Estado (B/A)',
-            field: 'estadoActivoBaja',
+            field: 'estado_Activo_Baja',
             filter: 'agTextColumnFilter',
             width: 120,
             cellStyle: params => {
@@ -615,22 +504,6 @@ function inicializarGridNacionales() {
             filter: true,
             floatingFilter: true
         },
-        autoGroupColumnDef: {
-            headerName: 'Compañía',
-            field: 'nombreCompania',
-            width: 250,
-            pinned: 'left',
-            cellRendererParams: {
-                suppressCount: false,  // Mostrar contador de registros
-                innerRenderer: params => {
-                    // Mostrar nombre de compañía en el grupo
-                    if (params.node.group) {
-                        return params.value || 'Sin compañía';
-                    }
-                    return params.value;
-                }
-            }
-        },
         pagination: true,
         paginationPageSize: 50,
         paginationPageSizeSelector: [20, 50, 100, 200],
@@ -638,10 +511,6 @@ function inicializarGridNacionales() {
         enableRangeSelection: true,
         suppressRowClickSelection: true,
         animateRows: true,
-        groupDisplayType: 'singleColumn',
-        groupDefaultExpanded: 1,
-        groupIncludeTotalFooter: true,
-        grandTotalRow: 'bottom',
         overlayNoRowsTemplate: '<span style="padding: 20px; font-size: 16px; color: #666;">No hay activos nacionales para mostrar</span>',
         onGridReady: function(params) {
             gridApiNacionales = params.api;
@@ -653,11 +522,11 @@ function inicializarGridNacionales() {
 }
 
 async function cargarReporte() {
-    const companiasSeleccionadas = Array.from(document.querySelectorAll('.compania-check:checked')).map(cb => cb.value);
+    const idCompania = document.getElementById('companiaSelect').value;
     const añoCalculo = document.getElementById('añoSelect').value;
 
-    if (companiasSeleccionadas.length === 0 || !añoCalculo) {
-        alert('Por favor seleccione al menos una compañía y un año');
+    if (!idCompania || !añoCalculo) {
+        alert('Por favor seleccione compañía y año');
         return;
     }
 
@@ -667,7 +536,7 @@ async function cargarReporte() {
         btnCargar.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Cargando...';
 
         // Cache-busting con timestamp
-        const response = await fetch(`/api/reporte?companias=${companiasSeleccionadas.join(',')}&año=${añoCalculo}&v=${Date.now()}`);
+        const response = await fetch(`/api/reporte/${idCompania}/${añoCalculo}?v=${Date.now()}`);
         if (!response.ok) throw new Error('Error al cargar reporte');
 
         const data = await response.json();
@@ -701,12 +570,12 @@ async function cargarReporte() {
             const totalMOI = totalMOI_Ext + totalMOI_Nac;
 
             // Valor Reportable: extranjeros usan Valor_Reportable_MXN, nacionales usan Valor_Promedio_Proporcional_Año
-            const totalValor_Ext = currentDataExtranjeros.reduce((sum, row) => sum + (row.valorProporcionalAñoPesos || 0), 0);
-            const totalValor_Nac = currentDataNacionales.reduce((sum, row) => sum + (row.valorPromedioProporcionalAño || 0), 0);
+            const totalValor_Ext = currentDataExtranjeros.reduce((sum, row) => sum + (row.valor_Reportable_MXN || 0), 0);
+            const totalValor_Nac = currentDataNacionales.reduce((sum, row) => sum + (row.valor_Promedio_Proporcional_Año || 0), 0);
             const totalValor = totalValor_Ext + totalValor_Nac;
 
             // Activos con 10% MOI: solo extranjeros tienen esta prueba
-            const totalActivos10Pct = currentDataExtranjeros.filter(row => (row.pruebaDel10PctMOI || 0) > 0).length;
+            const totalActivos10Pct = currentDataExtranjeros.filter(row => (row.prueba_10_Pct_MOI || 0) > 0).length;
 
             // Actualizar tarjeta de totales
             document.getElementById('totalRegistros').textContent = totalRegistros.toLocaleString('en-US');
@@ -730,7 +599,7 @@ async function cargarReporte() {
         }
 
         btnCargar.disabled = false;
-        btnCargar.innerHTML = '<i class="fas fa-search"></i> Cargar';
+        btnCargar.innerHTML = '<i class="fas fa-search"></i> Cargar Reporte';
 
     } catch (error) {
         console.error('Error:', error);
@@ -738,7 +607,7 @@ async function cargarReporte() {
 
         const btnCargar = document.getElementById('btnCargarReporte');
         btnCargar.disabled = false;
-        btnCargar.innerHTML = '<i class="fas fa-search"></i> Cargar';
+        btnCargar.innerHTML = '<i class="fas fa-search"></i> Cargar Reporte';
     }
 }
 
@@ -750,156 +619,29 @@ function exportarExcel() {
         return;
     }
 
+    const companiaText = document.getElementById('companiaSelect').selectedOptions[0].text;
     const año = document.getElementById('añoSelect').value;
     const fecha = new Date().toISOString().split('T')[0];
 
-    // Agrupar datos por compañía e idCompania
-    const companiaGroups = {};
-
-    // Procesar extranjeros
-    currentDataExtranjeros.forEach(row => {
-        const key = `${row.nombreCompania}|${row.idCompania}`;
-        if (!companiaGroups[key]) {
-            companiaGroups[key] = {
-                nombre: row.nombreCompania,
-                idCompania: row.idCompania,
-                extranjeros: [],
-                nacionales: []
-            };
-        }
-        companiaGroups[key].extranjeros.push(row);
-    });
-
-    // Procesar nacionales
-    currentDataNacionales.forEach(row => {
-        const key = `${row.nombreCompania}|${row.idCompania}`;
-        if (!companiaGroups[key]) {
-            companiaGroups[key] = {
-                nombre: row.nombreCompania,
-                idCompania: row.idCompania,
-                extranjeros: [],
-                nacionales: []
-            };
-        }
-        companiaGroups[key].nacionales.push(row);
-    });
-
-    // Crear un nuevo libro de Excel
-    const workbook = XLSX.utils.book_new();
-    let sheetsAdded = 0;
-
-    // Obtener las definiciones de columnas (sin las ocultas)
-    const colDefsExtranjeros = gridApiExtranjeros.getColumnDefs().filter(col => !col.hide);
-    const colDefsNacionales = gridApiNacionales.getColumnDefs().filter(col => !col.hide);
-
-    // Función auxiliar para convertir datos a worksheet
-    function createWorksheet(data, columnDefs) {
-        // Crear headers
-        const headers = columnDefs.map(col => col.headerName);
-
-        // Crear filas de datos - USAR VALORES RAW, NO FORMATTERS
-        const rows = data.map(row => {
-            return columnDefs.map(col => {
-                const value = row[col.field];
-
-                // Si es null o undefined, retornar vacío
-                if (value === null || value === undefined) return '';
-
-                // Si es fecha, formatear como string para Excel
-                if (col.field.includes('fecha') || col.field.includes('Fecha')) {
-                    if (!value) return '';
-                    const date = new Date(value);
-                    return date.toLocaleDateString('es-MX');
-                }
-
-                // Para números, retornar el valor raw (Excel lo formateará automáticamente)
-                // NO usar valueFormatter ya que puede causar problemas de tipo
-                return value;
-            });
-        });
-
-        // Combinar headers y rows
-        const wsData = [headers, ...rows];
-
-        // Crear worksheet
-        const ws = XLSX.utils.aoa_to_sheet(wsData);
-
-        // Aplicar formato de moneda SOLO a columnas monetarias
-        const range = XLSX.utils.decode_range(ws['!ref']);
-
-        // Campos monetarios (que representan dinero)
-        const camposMonetarios = [
-            'moi', 'deprecAnual', 'depFiscalAcumuladaInicioAño',
-            'saldoPorDeducirISRAlInicioAño', 'depreciacionFiscalDelEjercicio',
-            'montoPendientePorDeducir', 'proporcionMontoPendientePorDeducir',
-            'pruebaDel10PctMOI', 'valorProporcionalAñoPesos',
-            'valorPromedioProporcionalAño', 'costoRevaluado', 'factorActualizacion',
-            'moiActualizado', 'depAcumActual', 'saldoPorDepreciarInicioPeriodo',
-            'depEjercicioActualizada', 'saldoPorDepreciarDespuesDelEjercicio',
-            'promedioActivoFijoAcumuladoAnual'
-        ];
-
-        for (let R = range.s.r + 1; R <= range.e.r; ++R) {
-            for (let C = range.s.c; C <= range.e.c; ++C) {
-                const cellAddress = XLSX.utils.encode_cell({ r: R, c: C });
-                const cell = ws[cellAddress];
-
-                if (!cell) continue;
-
-                const colDef = columnDefs[C];
-                const value = cell.v;
-
-                // Si es un número Y la columna es monetaria, aplicar formato de moneda
-                if (typeof value === 'number' && cell.t === 'n' && colDef && camposMonetarios.includes(colDef.field)) {
-                    cell.z = '$#,##0.00';
-                }
-            }
-        }
-
-        // Ajustar anchos de columna
-        const colWidths = columnDefs.map(col => ({
-            wch: Math.max(col.width ? col.width / 8 : 15, (col.headerName || '').length + 2)
-        }));
-        ws['!cols'] = colWidths;
-
-        return ws;
+    // Exportar Extranjeros
+    if (currentDataExtranjeros.length > 0) {
+        const paramsExt = {
+            fileName: `SafeHarbor_Extranjeros_${companiaText.replace(/\s+/g, '_')}_${año}_${fecha}.csv`,
+            sheetName: `Extranjeros ${año}`
+        };
+        gridApiExtranjeros.exportDataAsCsv(paramsExt);
+        console.log(`Exportados ${currentDataExtranjeros.length} activos extranjeros`);
     }
 
-    // Función para sanear nombres de hojas (Excel tiene límite de 31 caracteres y no permite ciertos caracteres)
-    function sanitizeSheetName(name) {
-        // Reemplazar caracteres no permitidos en nombres de hojas de Excel
-        let sanitized = name.replace(/[:\\\/\?\*\[\]]/g, '_');
-        // Limitar a 31 caracteres
-        if (sanitized.length > 31) {
-            sanitized = sanitized.substring(0, 31);
-        }
-        return sanitized;
+    // Exportar Nacionales
+    if (currentDataNacionales.length > 0) {
+        const paramsNac = {
+            fileName: `SafeHarbor_Nacionales_${companiaText.replace(/\s+/g, '_')}_${año}_${fecha}.csv`,
+            sheetName: `Nacionales ${año}`
+        };
+        gridApiNacionales.exportDataAsCsv(paramsNac);
+        console.log(`Exportados ${currentDataNacionales.length} activos nacionales`);
     }
 
-    // Procesar cada compañía y agregar hojas al libro
-    Object.values(companiaGroups).forEach(group => {
-        const companiaNombre = group.nombre;
-
-        // Agregar hoja de extranjeros si hay datos
-        if (group.extranjeros.length > 0) {
-            const sheetName = sanitizeSheetName(`${companiaNombre} - Extranjeros`);
-            const worksheet = createWorksheet(group.extranjeros, colDefsExtranjeros);
-            XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
-            sheetsAdded++;
-        }
-
-        // Agregar hoja de nacionales si hay datos
-        if (group.nacionales.length > 0) {
-            const sheetName = sanitizeSheetName(`${companiaNombre} - Nacionales`);
-            const worksheet = createWorksheet(group.nacionales, colDefsNacionales);
-            XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
-            sheetsAdded++;
-        }
-    });
-
-    // Exportar el libro como archivo XLSX
-    const fileName = `SafeHarbor_${año}_${fecha}.xlsx`;
-    XLSX.writeFile(workbook, fileName);
-
-    alert(`Exportación completada:\n${sheetsAdded} hojas en el archivo ${fileName}`);
+    alert(`Exportación completada:\n- ${currentDataExtranjeros.length} activos extranjeros\n- ${currentDataNacionales.length} activos nacionales`);
 }
