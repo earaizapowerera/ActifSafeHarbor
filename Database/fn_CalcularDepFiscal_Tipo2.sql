@@ -35,7 +35,7 @@ GO
 CREATE FUNCTION dbo.fn_CalcularDepFiscal_Tipo2
 (
     @MOI DECIMAL(18,4),
-    @Tasa_Mensual DECIMAL(18,6),
+    @Tasa_Anual DECIMAL(18,6),
     @Fecha_Inicio_Deprec_3 DATE,
     @Año_Anterior INT,
     @ID_PAIS INT,
@@ -47,13 +47,17 @@ BEGIN
     DECLARE @Depreciacion_Calculada DECIMAL(18,4) = 0;
     DECLARE @Fecha_Fin_Año_Anterior DATE;
     DECLARE @Meses_Transcurridos INT = 0;
+    DECLARE @Tasa_Mensual_Calculada DECIMAL(18,10);
 
     -- Validar parámetros de entrada
     IF @MOI IS NULL OR @MOI <= 0
         RETURN 0;
 
-    IF @Tasa_Mensual IS NULL OR @Tasa_Mensual <= 0
+    IF @Tasa_Anual IS NULL OR @Tasa_Anual <= 0
         RETURN 0;
+
+    -- Calcular tasa mensual con mayor precisión (10 decimales)
+    SET @Tasa_Mensual_Calculada = @Tasa_Anual / 12 / 100;
 
     IF @Fecha_Inicio_Deprec_3 IS NULL
         RETURN 0;
@@ -78,7 +82,8 @@ BEGIN
         RETURN 0;
 
     -- Calcular depreciación: Meses * Tasa_Mensual * MOI
-    SET @Depreciacion_Calculada = @Meses_Transcurridos * @Tasa_Mensual * @MOI;
+    -- Usar tasa mensual calculada con mayor precisión
+    SET @Depreciacion_Calculada = @Meses_Transcurridos * @Tasa_Mensual_Calculada * @MOI;
 
     -- Validar que la depreciación no supere el MOI (100% depreciado)
     IF @Depreciacion_Calculada > @MOI

@@ -156,12 +156,13 @@ BEGIN
 
     -- 9. Calcular Depreciación Fiscal del Ejercicio
     -- IMPORTANTE: La depreciación no puede exceder el saldo disponible
+    -- USAR Tasa_Anual/12/100 para mayor precisión (no Tasa_Mensual con 6 decimales)
     UPDATE #ActivosCalculo
     SET Dep_Ejercicio =
         CASE
-            WHEN (MOI * Tasa_Mensual * Meses_Hasta_Mitad_Periodo) > Saldo_Inicio_Año
+            WHEN (MOI * (Tasa_Anual / 12 / 100) * Meses_Hasta_Mitad_Periodo) > Saldo_Inicio_Año
             THEN Saldo_Inicio_Año  -- Limitar a saldo disponible
-            ELSE MOI * Tasa_Mensual * Meses_Hasta_Mitad_Periodo
+            ELSE MOI * (Tasa_Anual / 12 / 100) * Meses_Hasta_Mitad_Periodo
         END;
 
     -- 10. Calcular Monto Pendiente por Deducir
@@ -276,7 +277,7 @@ BEGIN
         Saldo_Inicio_Año, Dep_Ejercicio, Monto_Pendiente, Proporcion,
         Prueba_10Pct, Aplica_Regla_10Pct,
         NULL, NULL, Valor_MXN,  -- No aplican USD ni TC para nacionales
-        FECHA_COMPRA, FECHA_BAJA, GETDATE(), @Lote_Calculo, 'v4.1-INPC-FIXED'
+        FECHA_COMPRA, FECHA_BAJA, GETDATE(), @Lote_Calculo, 'v4.2-PRECISION-FIX'
     FROM #ActivosCalculo;
 
     SET @RegistrosProcesados = @@ROWCOUNT;
