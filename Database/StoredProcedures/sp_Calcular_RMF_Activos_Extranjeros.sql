@@ -83,8 +83,7 @@ BEGIN
     INSERT INTO #ActivosCalculo (
         ID_Staging, ID_NUM_ACTIVO, ID_ACTIVO, DESCRIPCION,
         MOI, Tasa_Anual, Tasa_Mensual,
-        FECHA_COMPRA, FECHA_BAJA, ID_PAIS, ID_MONEDA,
-        Dep_Acum_Inicio
+        FECHA_COMPRA, FECHA_BAJA, ID_PAIS, ID_MONEDA
     )
     SELECT
         s.ID_Staging,
@@ -97,8 +96,7 @@ BEGIN
         s.FECHA_COMPRA,
         s.FECHA_BAJA,
         s.ID_PAIS,
-        s.ID_MONEDA,
-        ISNULL(s.Dep_Acum_Inicio_Año, 0) AS Dep_Acum_Inicio
+        s.ID_MONEDA
     FROM Staging_Activo s
     WHERE s.ID_Compania = @ID_Compania
       AND s.Lote_Importacion = @Lote_Importacion
@@ -119,6 +117,11 @@ BEGIN
             THEN 0  -- Activo nuevo en el año
             ELSE DATEDIFF(MONTH, FECHA_COMPRA, CAST(CAST(@Año_Anterior AS VARCHAR(4)) + '-12-31' AS DATE))
         END;
+
+    -- 3.1b CALCULAR Depreciación Acumulada al Inicio del Año (K = D * F * H)
+    -- Para activos EXTRANJEROS: SIEMPRE calcular (no usar BD)
+    UPDATE #ActivosCalculo
+    SET Dep_Acum_Inicio = MOI * Tasa_Mensual * Meses_Uso_Inicio_Ejercicio;
 
     -- 3.2 Calcular meses hasta la mitad del periodo (I)
     UPDATE #ActivosCalculo

@@ -47,7 +47,10 @@ public class ETLService
             Console.WriteLine($"ETL .NET - Compañía: {idCompania}, Año: {añoCalculo}");
             Console.WriteLine("===========================================\n");
 
-            // NUEVO: Invocar el ETL .NET standalone en lugar de queries cross-database
+            // NOTA: La limpieza de staging se hace en el ETL .NET para respetar foreign keys
+            // El ETL .NET borra en el orden correcto: Calculo_RMF -> Calculo_Fiscal_Simulado -> Staging_Activo
+
+            // Invocar el ETL .NET standalone en lugar de queries cross-database
             var etlPath = "/Users/enrique/ActifRMF/ETL_NET/ActifRMF.ETL";
             var etlExe = Path.Combine(etlPath, "bin/Release/net8.0/ActifRMF.ETL.dll");
 
@@ -147,13 +150,12 @@ public class ETLService
         }
     }
 
-    public async Task<CalculoResult> EjecutarCalculoAsync(int idCompania, int añoCalculo, Guid loteImportacion, string usuario = "Sistema", Guid? loteCalculo = null)
+    public async Task<CalculoResult> EjecutarCalculoAsync(int idCompania, int añoCalculo, string usuario = "Sistema", Guid? loteCalculo = null)
     {
         var result = new CalculoResult
         {
             IdCompania = idCompania,
             AñoCalculo = añoCalculo,
-            LoteImportacion = loteImportacion,
             LoteCalculo = loteCalculo ?? Guid.NewGuid(),
             FechaInicio = DateTime.Now
         };
@@ -162,6 +164,7 @@ public class ETLService
         {
             Console.WriteLine("===========================================");
             Console.WriteLine($"CÁLCULO RMF - Compañía: {idCompania}, Año: {añoCalculo}");
+            Console.WriteLine($"Procesando todos los activos del año en Staging_Activo");
             Console.WriteLine($"Lote Cálculo: {result.LoteCalculo}");
             Console.WriteLine("===========================================\n");
 
@@ -169,7 +172,7 @@ public class ETLService
             var progreso = new CalculoProgress
             {
                 LoteCalculo = result.LoteCalculo,
-                Estado = "Iniciando cálculo...",
+                Estado = "Iniciando cálculo para todos los activos del año...",
                 FechaInicio = result.FechaInicio,
                 RegistrosCalculados = 0
             };
@@ -183,6 +186,8 @@ public class ETLService
 
                 // Usar MERGE para insertar solo si no existe, o actualizar si ya existe
                 var sqlLog = @"
+                    DECLARE @ID_Log_Result BIGINT;
+
                     MERGE INTO dbo.Log_Ejecucion_ETL AS target
                     USING (SELECT @LoteImportacion AS Lote_Importacion, 'CALCULO' AS Tipo_Proceso) AS source
                     ON target.Lote_Importacion = source.Lote_Importacion
@@ -202,12 +207,9 @@ public class ETLService
                         INSERT (ID_Compania, Año_Calculo, Lote_Importacion, Tipo_Proceso,
                                 Fecha_Inicio, Estado, Usuario)
                         VALUES (@IdCompania, @AñoCalculo, @LoteImportacion, 'CALCULO',
-                                @FechaInicio, 'En Proceso', @Usuario);
-
-                    SELECT ID_Log
-                    FROM dbo.Log_Ejecucion_ETL
-                    WHERE Lote_Importacion = @LoteImportacion
-                      AND Tipo_Proceso = 'CALCULO';";
+                                @FechaInicio, 'En Proceso', @Usuario)
+                    OUTPUT INSERTED.ID_Log;
+                    ";
 
                 using var cmdLog = new SqlCommand(sqlLog, connRMF);
                 cmdLog.Parameters.AddWithValue("@IdCompania", idCompania);
@@ -216,7 +218,12 @@ public class ETLService
                 cmdLog.Parameters.AddWithValue("@FechaInicio", result.FechaInicio);
                 cmdLog.Parameters.AddWithValue("@Usuario", usuario);
 
-                idLog = (long)await cmdLog.ExecuteScalarAsync();
+                var idLogResult = await cmdLog.ExecuteScalarAsync();
+                if (idLogResult == null || idLogResult == DBNull.Value)
+                {
+                    throw new Exception($"Error al crear/obtener log de cálculo. El query no retornó ID_Log. Compañía: {idCompania}, Año: {añoCalculo}, Lote: {result.LoteCalculo}");
+                }
+                idLog = Convert.ToInt64(idLogResult);
             }
 
             progreso.Estado = "Ejecutando stored procedure...";
@@ -231,30 +238,67 @@ public class ETLService
                 progreso.Estado = e.Message;
             };
 
-            // Calcular activos extranjeros
+            // Calcular activos EXTRANJEROS
+            Console.WriteLine("=== Calculando activos EXTRANJEROS ===");
+
             using (var command = new SqlCommand("dbo.sp_Calcular_RMF_Activos_Extranjeros", connection))
             {
                 command.CommandType = CommandType.StoredProcedure;
                 command.CommandTimeout = 300;
 
+                // Solo pasar ID_Compania y Año_Calculo
                 command.Parameters.AddWithValue("@ID_Compania", idCompania);
                 command.Parameters.AddWithValue("@Año_Calculo", añoCalculo);
-                command.Parameters.AddWithValue("@Lote_Importacion", loteImportacion);
+
+                await command.ExecuteNonQueryAsync();
+                Console.WriteLine("SP Extranjeros ejecutado");
+            }
+
+            // Calcular activos NACIONALES
+            Console.WriteLine("=== Calculando activos NACIONALES ===");
+            using (var command = new SqlCommand("dbo.sp_Calcular_RMF_Activos_Nacionales", connection))
+            {
+                command.CommandType = CommandType.StoredProcedure;
+                command.CommandTimeout = 300;
+
+                // Solo pasar ID_Compania y Año_Calculo
+                command.Parameters.AddWithValue("@ID_Compania", idCompania);
+                command.Parameters.AddWithValue("@Año_Calculo", añoCalculo);
+
+                await command.ExecuteNonQueryAsync();
+                Console.WriteLine("SP Nacionales ejecutado");
+            }
+
+            // Obtener totales de Calculo_RMF por compañía y año
+            using (var command = new SqlCommand(@"
+                SELECT
+                    COUNT(*) AS Total_Registros,
+                    SUM(Valor_Reportable_MXN) AS Total_MXN,
+                    SUM(CASE WHEN Aplica_10_Pct = 1 THEN 1 ELSE 0 END) AS Con_10Pct
+                FROM Calculo_RMF
+                WHERE ID_Compania = @ID_Compania
+                  AND Año_Calculo = @Año_Calculo", connection))
+            {
+                command.Parameters.AddWithValue("@ID_Compania", idCompania);
+                command.Parameters.AddWithValue("@Año_Calculo", añoCalculo);
 
                 using var reader = await command.ExecuteReaderAsync();
-
                 if (await reader.ReadAsync())
                 {
-                    result.LoteCalculo = reader.GetGuid(reader.GetOrdinal("Lote_Calculo"));
-                    result.RegistrosCalculados = reader.GetInt32(reader.GetOrdinal("Registros_Calculados"));
-                    result.TotalValorReportable = reader.GetDecimal(reader.GetOrdinal("Total_Valor_Reportable_MXN"));
-                    result.ActivosCon10PctMOI = reader.GetInt32(reader.GetOrdinal("Activos_Con_Regla_10_Pct"));
+                    result.RegistrosCalculados = reader.GetInt32(0);
+                    result.TotalValorReportable = reader.IsDBNull(1) ? 0 : reader.GetDecimal(1);
+                    result.ActivosCon10PctMOI = reader.GetInt32(2);
 
                     progreso.RegistrosCalculados = result.RegistrosCalculados;
                     progreso.TotalValorReportable = result.TotalValorReportable;
                     progreso.ActivosCon10PctMOI = result.ActivosCon10PctMOI;
                 }
             }
+
+            Console.WriteLine($"=== RESUMEN TOTAL ===");
+            Console.WriteLine($"Total calculados: {result.RegistrosCalculados}");
+            Console.WriteLine($"Total MXN: ${result.TotalValorReportable:N2}");
+            Console.WriteLine($"Con regla 10%: {result.ActivosCon10PctMOI}");
 
             result.FechaFin = DateTime.Now;
             result.Exitoso = true;

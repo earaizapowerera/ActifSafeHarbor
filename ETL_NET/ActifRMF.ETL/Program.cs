@@ -44,18 +44,19 @@ class Program
         Console.WriteLine("Proceso completado.");
 
         // Solo esperar tecla si no es modo test
-        if (!limiteRegistros.HasValue)
-        {
-            Console.WriteLine("Presiona cualquier tecla para salir...");
-            Console.ReadKey();
-        }
+        // COMENTADO para permitir ejecución automatizada
+        // if (!limiteRegistros.HasValue)
+        // {
+        //     Console.WriteLine("Presiona cualquier tecla para salir...");
+        //     Console.ReadKey();
+        // }
     }
 }
 
 public class ETLActivos
 {
     // Connection strings
-    private const string ConnStrOrigen = "Server=dbdev.powerera.com;Database=actif_web_cima_dev;User Id=earaiza;Password=VgfN-n4ju?H1Z4#JFRE;TrustServerCertificate=True;";
+    private const string ConnStrOrigen = "Server=dbdev.powerera.com;Database=actif_learensayo10;User Id=earaiza;Password=VgfN-n4ju?H1Z4#JFRE;TrustServerCertificate=True;";
     private const string ConnStrDestino = "Server=dbdev.powerera.com;Database=Actif_RMF;User Id=earaiza;Password=VgfN-n4ju?H1Z4#JFRE;TrustServerCertificate=True;";
 
     public async Task EjecutarETL(int idCompania, int añoCalculo, int? limiteRegistros = null, Guid? loteParam = null)
@@ -146,7 +147,7 @@ public class ETLActivos
         using var conn = new SqlConnection(ConnStrDestino);
         await conn.OpenAsync();
 
-        // Primero eliminar tablas dependientes
+        // Eliminar cálculos previos
         var cmdCalculo = new SqlCommand(@"
             DELETE FROM Calculo_RMF
             WHERE ID_Compania = @ID_Compania
@@ -163,21 +164,21 @@ public class ETLActivos
         cmdSimulado.Parameters.AddWithValue("@Año_Calculo", añoCalculo);
         int simuladosDeleted = await cmdSimulado.ExecuteNonQueryAsync();
 
-        // Ahora sí eliminar staging
-        var cmd = new SqlCommand(@"
+        // Eliminar staging previo para reimportar
+        var cmdStaging = new SqlCommand(@"
             DELETE FROM Staging_Activo
             WHERE ID_Compania = @ID_Compania
               AND Año_Calculo = @Año_Calculo", conn);
-        cmd.Parameters.AddWithValue("@ID_Compania", idCompania);
-        cmd.Parameters.AddWithValue("@Año_Calculo", añoCalculo);
-        int stagingDeleted = await cmd.ExecuteNonQueryAsync();
+        cmdStaging.Parameters.AddWithValue("@ID_Compania", idCompania);
+        cmdStaging.Parameters.AddWithValue("@Año_Calculo", añoCalculo);
+        int stagingDeleted = await cmdStaging.ExecuteNonQueryAsync();
 
-        if (stagingDeleted > 0 || calculosDeleted > 0 || simuladosDeleted > 0)
+        if (calculosDeleted > 0 || simuladosDeleted > 0 || stagingDeleted > 0)
         {
-            Console.WriteLine($"Registros previos eliminados:");
+            Console.WriteLine($"Datos previos eliminados:");
+            if (stagingDeleted > 0) Console.WriteLine($"  - Staging_Activo: {stagingDeleted}");
             if (calculosDeleted > 0) Console.WriteLine($"  - Calculo_RMF: {calculosDeleted}");
             if (simuladosDeleted > 0) Console.WriteLine($"  - Calculo_Fiscal_Simulado: {simuladosDeleted}");
-            if (stagingDeleted > 0) Console.WriteLine($"  - Staging_Activo: {stagingDeleted}");
         }
     }
 
@@ -253,6 +254,7 @@ public class ETLActivos
         var cmd = new SqlCommand($@"
             SELECT {topClause}
                 -- Identificación
+                a.ID_COMPANIA,
                 a.ID_NUM_ACTIVO,
                 a.ID_ACTIVO,
                 a.ID_TIPO_ACTIVO,
@@ -300,7 +302,7 @@ public class ETLActivos
                     SELECT TOP 1 c.ACUMULADO_HISTORICA
                     FROM calculo c
                     WHERE c.ID_NUM_ACTIVO = a.ID_NUM_ACTIVO
-                      AND c.ID_COMPANIA = @ID_Compania
+                      AND c.ID_COMPANIA = a.ID_COMPANIA
                       AND c.ID_ANO = @Año_Anterior
                       AND c.ID_MES = 12
                       AND c.ID_TIPO_DEP = 2
@@ -340,12 +342,88 @@ public class ETLActivos
                 AND inpc_mitad.Id_Pais = 1
                 AND inpc_mitad.Id_Grupo_Simulacion = 8
 
-            WHERE a.ID_COMPANIA = @ID_Compania
-              AND a.STATUS = 'A'  -- Solo activos activos
+            WHERE a.ID_COMPANIA = @ID_Compania  -- Filtrar solo por compañía solicitada
+              AND (a.STATUS = 'A' OR (a.STATUS = 'B' AND YEAR(a.FECHA_BAJA) = @Año_Calculo))  -- Activos activos O dados de baja en el año
+              AND a.ID_NUM_ACTIVO IN (
+                  -- ========================================
+                  -- Compañía 188 - EXTRANJEROS ACTIVOS (10)
+                  -- ========================================
+                  44073, 44117, 44128, 44130, 44156,
+                  44159, 44161, 44169, 44172, 44402,
+
+                  -- ========================================
+                  -- Compañía 188 - EXTRANJEROS BAJA 2024 (2)
+                  -- ========================================
+                  160761,  -- Baja ene-2024
+                  204091,  -- Baja jul-2024
+
+                  -- ========================================
+                  -- Compañía 188 - NACIONALES ACTIVOS (10)
+                  -- ========================================
+                  50847, 50855, 50893, 50894, 50899,
+                  50909, 50912, 50927, 50967, 50974,
+
+                  -- ========================================
+                  -- Compañía 188 - NACIONALES BAJA 2024 (2)
+                  -- ========================================
+                  192430,  -- Baja feb-2024
+                  201213,  -- Baja jul-2024
+
+                  -- ========================================
+                  -- Compañía 122 - EXTRANJEROS ACTIVOS (10)
+                  -- ========================================
+                  107002, 107009, 107012, 107014, 107028,
+                  107036, 107045, 107055, 107057, 107069,
+
+                  -- ========================================
+                  -- Compañía 122 - EXTRANJEROS BAJA 2024 (2)
+                  -- ========================================
+                  122234,  -- Baja ene-2024
+                  122331,  -- Baja jul-2024
+
+                  -- ========================================
+                  -- Compañía 123 - NACIONALES ACTIVOS (10)
+                  -- ========================================
+                  110380, 110387, 110390, 110392, 110406,
+                  110414, 110423, 110433, 110435, 110447,
+
+                  -- ========================================
+                  -- Compañía 123 - NACIONALES BAJA 2024 (2)
+                  -- ========================================
+                  158224,  -- Baja ene-2024
+                  158456,  -- Baja ago-2024
+
+                  -- ========================================
+                  -- Compañía 12 - EXTRANJEROS ACTIVOS (5)
+                  -- ========================================
+                  70590, 70600, 70616, 70620, 70640,
+
+                  -- ========================================
+                  -- Compañía 12 - EXTRANJEROS BAJA 2024 (2)
+                  -- ========================================
+                  93551,  -- Baja abr-2024
+                  83687,  -- Baja jul-2024
+
+                  -- ========================================
+                  -- Compañía 12 - NACIONALES ACTIVOS (5)
+                  -- ========================================
+                  70001, 70002, 70003, 70004, 70005,
+
+                  -- ========================================
+                  -- Compañía 12 - NACIONALES BAJA 2024 (2)
+                  -- ========================================
+                  70157,   -- Baja mar-2024
+                  128908   -- Baja jul-2024
+
+                  -- TOTAL: 62 activos
+                  -- Desglose: 50 activos + 12 bajas en 2024
+                  -- Todos válidos: sin ERROR DE DEDO
+              )
               AND (a.FECHA_COMPRA IS NULL OR a.FECHA_COMPRA <= CAST('{añoCalculo}-12-31' AS DATE))
               AND (a.FECHA_BAJA IS NULL OR a.FECHA_BAJA >= CAST('{añoCalculo}-01-01' AS DATE))
-            ORDER BY a.ID_NUM_ACTIVO", conn);
+            ORDER BY a.ID_COMPANIA, a.ID_NUM_ACTIVO", conn);
 
+        // Pasar parámetro de compañía para filtrar solo activos de esa compañía
         cmd.Parameters.AddWithValue("@ID_Compania", idCompania);
         cmd.Parameters.AddWithValue("@Año_Calculo", añoCalculo);
         cmd.Parameters.AddWithValue("@Año_Anterior", añoAnterior);
@@ -447,6 +525,13 @@ public class ETLActivos
         string manejaFiscal = row["ManejaFiscal"].ToString() ?? "N";
         string manejaUSGAAP = row["ManejaUSGAAP"].ToString() ?? "N";
 
+        // ERROR DE DEDO: Si ambos están activos, es un error - NO procesar
+        if (manejaFiscal == "S" && manejaUSGAAP == "S")
+        {
+            Console.WriteLine($"⚠️  ADVERTENCIA: Activo {row["ID_NUM_ACTIVO"]} tiene ambos flags activos (Fiscal Y USGAAP) - OMITIDO por error de dedo");
+            return;  // NO insertar este activo
+        }
+
         decimal? costoUSD = null;
         decimal? costoMXN = null;
 
@@ -526,7 +611,7 @@ public class ETLActivos
                  @CostoUSD, @CostoMXN,
                  @Año_Calculo, @Lote_Importacion)", conn, transaction);
 
-        cmd.Parameters.AddWithValue("@ID_Compania", idCompania);
+        cmd.Parameters.AddWithValue("@ID_Compania", row["ID_COMPANIA"]);
         cmd.Parameters.AddWithValue("@ID_NUM_ACTIVO", row["ID_NUM_ACTIVO"]);
         cmd.Parameters.AddWithValue("@ID_ACTIVO", row["ID_ACTIVO"] ?? DBNull.Value);
         cmd.Parameters.AddWithValue("@ID_TIPO_ACTIVO", row["ID_TIPO_ACTIVO"] ?? DBNull.Value);
@@ -548,7 +633,7 @@ public class ETLActivos
 
         cmd.Parameters.AddWithValue("@Tasa_Anual", row["Tasa_Anual"] ?? DBNull.Value);
         cmd.Parameters.AddWithValue("@Tasa_Mensual",
-            row["Tasa_Anual"] != DBNull.Value ? Convert.ToDecimal(row["Tasa_Anual"]) / 12.0m : DBNull.Value);
+            row["Tasa_Anual"] != DBNull.Value ? Convert.ToDecimal(row["Tasa_Anual"]) / 100.0m / 12.0m : DBNull.Value);
         cmd.Parameters.AddWithValue("@Dep_Acum_Inicio_Año", row["Dep_Acum_Inicio_Año"] ?? DBNull.Value);
         cmd.Parameters.AddWithValue("@INPC_Adquisicion", row["INPC_Adquisicion"] ?? DBNull.Value);
         cmd.Parameters.AddWithValue("@INPC_Mitad_Ejercicio", row["INPC_Mitad_Ejercicio"] ?? DBNull.Value);
