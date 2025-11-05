@@ -89,12 +89,9 @@ BEGIN
     IF @Depreciacion_Calculada > @MOI
         SET @Depreciacion_Calculada = @MOI;
 
-    -- Para activos extranjeros (ID_PAIS > 1), multiplicar por tipo de cambio
-    -- NOTA: El tipo de cambio debe ser del 31 de diciembre del año anterior
-    IF @ID_PAIS > 1 AND @Tipo_Cambio IS NOT NULL AND @Tipo_Cambio > 0
-    BEGIN
-        SET @Depreciacion_Calculada = @Depreciacion_Calculada * @Tipo_Cambio;
-    END
+    -- IMPORTANTE: Para activos extranjeros, NO multiplicar por tipo de cambio
+    -- La depreciación debe quedar en USD (misma moneda que MOI)
+    -- El tipo de cambio se aplica SOLO al final en Valor_Reportable_MXN
 
     RETURN @Depreciacion_Calculada;
 END
