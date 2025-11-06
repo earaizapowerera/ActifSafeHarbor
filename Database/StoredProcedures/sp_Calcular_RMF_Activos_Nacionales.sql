@@ -146,6 +146,8 @@ BEGIN
             ELSE 12
         END;
 
+    PRINT 'Meses de uso en ejercicio calculados';
+
     -- 8. Calcular Saldo por Deducir ISR al Inicio del Año
     UPDATE #ActivosCalculo
     SET Saldo_Inicio_Año = MOI - Dep_Acum_Inicio;
@@ -159,12 +161,14 @@ BEGIN
     -- 9. Calcular Depreciación Fiscal del Ejercicio
     -- IMPORTANTE: La depreciación no puede exceder el saldo disponible
     -- USAR Tasa_Anual/12/100 para mayor precisión (no Tasa_Mensual con 6 decimales)
+    -- CORRECCIÓN: Usar Meses_Uso_Ejercicio (no Meses_Hasta_Mitad_Periodo)
+    -- El 50% se aplica después en el cálculo del Valor_Promedio
     UPDATE #ActivosCalculo
     SET Dep_Ejercicio =
         CASE
-            WHEN (MOI * (Tasa_Anual / 12 / 100) * Meses_Hasta_Mitad_Periodo) > Saldo_Inicio_Año
+            WHEN (MOI * (Tasa_Anual / 12 / 100) * Meses_Uso_Ejercicio) > Saldo_Inicio_Año
             THEN Saldo_Inicio_Año  -- Limitar a saldo disponible
-            ELSE MOI * (Tasa_Anual / 12 / 100) * Meses_Hasta_Mitad_Periodo
+            ELSE MOI * (Tasa_Anual / 12 / 100) * Meses_Uso_Ejercicio
         END;
 
     -- 10. Calcular Monto Pendiente por Deducir

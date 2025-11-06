@@ -1152,6 +1152,8 @@ app.MapGet("/api/reporte", async (string? companias, int? año) =>
                 -- Valor promedio (paso 3)
                 c.Monto_Pendiente AS Valor_Promedio,
                 c.Proporcion AS Valor_Promedio_Proporcional_Año,
+                c.Prueba_10_Pct_MOI AS Prueba_Del_10_Pct_MOI,
+                c.Valor_Reportable_MXN AS Valor_Reportable_Safe_Harbor,
                 -- Saldo fiscal histórico y actualizado
                 (c.MOI - c.Dep_Acum_Inicio - c.Dep_Fiscal_Ejercicio) AS Saldo_Fiscal_Por_Deducir_Historico,
                 CASE
