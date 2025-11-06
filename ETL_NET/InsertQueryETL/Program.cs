@@ -95,6 +95,106 @@ LEFT JOIN INPC2 inpc_mitad
 
 WHERE a.ID_COMPANIA = @ID_Compania
   AND (a.STATUS = 'A' OR (a.STATUS = 'B' AND YEAR(a.FECHA_BAJA) = @Año_Calculo))
+
+  -- ⚠️ FILTRO DE PRUEBA - 86 activos hardcodeados
+  AND a.ID_NUM_ACTIVO IN (
+      -- Compañía 188 - EXTRANJEROS ACTIVOS (10)
+      44073, 44117, 44128, 44130, 44156,
+      44159, 44161, 44169, 44172, 44402,
+
+      -- Compañía 188 - EXTRANJEROS BAJA 2024 (2)
+      160761,  -- Baja ene-2024
+      204091,  -- Baja jul-2024
+
+      -- Compañía 188 - EXTRANJEROS ALTA 2024 (2)
+      2528041,  -- Alta ene-2024
+      2532774,  -- Alta jul-2024
+
+      -- Compañía 188 - EXTRANJEROS INICIO DEP 2023 (2)
+      204304,  -- Inicio deprec 2023
+      204220,  -- Inicio deprec 2023
+
+      -- Compañía 188 - NACIONALES ACTIVOS (10)
+      50847, 50855, 50893, 50894, 50899,
+      50909, 50912, 50927, 50967, 50974,
+
+      -- Compañía 188 - NACIONALES BAJA 2024 (2)
+      192430,  -- Baja feb-2024
+      201213,  -- Baja jul-2024
+
+      -- Compañía 188 - NACIONALES ALTA 2024 (2)
+      2530616,  -- Alta ene-2024
+      2532664,  -- Alta jul-2024
+
+      -- Compañía 188 - NACIONALES INICIO DEP 2023 (2)
+      205229,  -- Inicio deprec 2023
+      522282,  -- Inicio deprec 2023
+
+      -- Compañía 122 - EXTRANJEROS ACTIVOS (10)
+      107002, 107009, 107012, 107014, 107028,
+      107036, 107045, 107055, 107057, 107069,
+
+      -- Compañía 122 - EXTRANJEROS BAJA 2024 (2)
+      122234,  -- Baja ene-2024
+      122331,  -- Baja jul-2024
+
+      -- Compañía 122 - EXTRANJEROS ALTA 2024 (2)
+      2529304,  -- Alta ene-2024
+      2543405,  -- Alta jul-2024
+
+      -- Compañía 122 - EXTRANJEROS INICIO DEP 2023 (2)
+      204411,  -- Inicio deprec 2023
+      2537437,  -- Inicio deprec 2023
+
+      -- Compañía 123 - NACIONALES ACTIVOS (10)
+      110380, 110387, 110390, 110392, 110406,
+      110414, 110423, 110433, 110435, 110447,
+
+      -- Compañía 123 - NACIONALES BAJA 2024 (2)
+      158224,  -- Baja ene-2024
+      158456,  -- Baja ago-2024
+
+      -- Compañía 123 - NACIONALES ALTA 2024 (2)
+      2537738,  -- Alta ene-2024
+      2543813,  -- Alta jul-2024
+
+      -- Compañía 123 - NACIONALES INICIO DEP 2023 (2)
+      204697,  -- Inicio deprec 2023
+      204965,  -- Inicio deprec 2023
+
+      -- Compañía 12 - EXTRANJEROS ACTIVOS (5)
+      70590, 70600, 70616, 70620, 70640,
+
+      -- Compañía 12 - EXTRANJEROS BAJA 2024 (2)
+      93551,  -- Baja abr-2024
+      83687,  -- Baja jul-2024
+
+      -- Compañía 12 - EXTRANJEROS ALTA 2024 (2)
+      216310,  -- Alta ene-2024
+      218365,  -- Alta jul-2024
+
+      -- Compañía 12 - EXTRANJEROS INICIO DEP 2023 (2)
+      223318,  -- Inicio deprec 2023
+      215903,  -- Inicio deprec 2023
+
+      -- Compañía 12 - NACIONALES ACTIVOS (5)
+      70001, 70002, 70003, 70004, 70005,
+
+      -- Compañía 12 - NACIONALES BAJA 2024 (2)
+      70157,   -- Baja mar-2024
+      128908,  -- Baja jul-2024
+
+      -- Compañía 12 - NACIONALES ALTA 2024 (2)
+      223339,  -- Alta mar-2024
+      220403,  -- Alta jul-2024
+
+      -- Compañía 12 - NACIONALES INICIO DEP 2023 (2)
+      206122,  -- Inicio deprec 2023
+      206121   -- Inicio deprec 2023
+
+      -- TOTAL: 86 activos de prueba
+  )
+
   AND (a.FECHA_COMPRA IS NULL OR a.FECHA_COMPRA <= CAST(@Año_Calculo AS VARCHAR(4)) + '-12-31')
   AND (a.FECHA_BAJA IS NULL OR a.FECHA_BAJA >= CAST(@Año_Calculo AS VARCHAR(4)) + '-01-01')
 

@@ -1,5 +1,9 @@
 -- =============================================
--- DROP y RE-CREATE del Stored Procedure v4.7
+-- DROP y RE-CREATE del Stored Procedure v4.8
+-- CAMBIOS v4.8:
+-- - ELIMINADO: Campos INPC de tabla temporal y queries (extranjeros no usan INPC)
+-- - Staging_Activo ya no tiene campos INPC
+-- - INPCCompra e INPCUtilizado en Calculo_RMF se guardan como NULL (no aplican)
 -- CAMBIOS v4.7:
 -- - ELIMINADO: Parámetro @Lote_Importacion
 -- - Sistema ahora procesa TODOS los activos del año/compañía en Staging_Activo
@@ -26,7 +30,7 @@ BEGIN
     DECLARE @RegistrosProcesados INT = 0;
 
     PRINT '========================================';
-    PRINT 'Iniciando cálculo RMF Activos Extranjeros v4.7';
+    PRINT 'Iniciando cálculo RMF Activos Extranjeros v4.8';
     PRINT 'Compañía: ' + CAST(@ID_Compania AS VARCHAR(10));
     PRINT 'Año: ' + CAST(@Año_Calculo AS VARCHAR(10));
     PRINT '========================================';
@@ -82,9 +86,6 @@ BEGIN
         ID_PAIS INT,
         Dep_Acum_Inicio DECIMAL(18,4),
         Dep_Acum_Calculada DECIMAL(18,4),
-        INPC_Adqu DECIMAL(18,6),
-        INPC_Mitad_Ejercicio DECIMAL(18,6),
-        INPC_Mitad_Periodo DECIMAL(18,6),
         Meses_Uso_Inicio_Ejercicio INT,
         Meses_Hasta_Mitad_Periodo INT,
         Meses_Uso_Ejercicio INT,
@@ -110,7 +111,6 @@ BEGIN
         MOI, Tasa_Anual, Tasa_Mensual,
         FECHA_COMPRA, FECHA_BAJA, FECHA_INIC_DEPREC_3, ID_PAIS,
         Dep_Acum_Inicio,
-        INPC_Adqu, INPC_Mitad_Ejercicio,
         Usa_Calculo_Tipo2
     )
     SELECT
@@ -126,8 +126,6 @@ BEGIN
         s.FECHA_INIC_DEPREC_3,
         s.ID_PAIS,
         ISNULL(s.Dep_Acum_Inicio_Año, 0) AS Dep_Acum_Inicio,
-        s.INPC_Adquisicion AS INPC_Adqu,
-        s.INPC_Mitad_Ejercicio,
         -- Marcar si usará cálculo tipo 2 (cuando no tiene depreciación acumulada o es 0)
         CASE WHEN ISNULL(s.Dep_Acum_Inicio_Año, 0) = 0 THEN 1 ELSE 0 END AS Usa_Calculo_Tipo2
     FROM Staging_Activo s
@@ -299,9 +297,8 @@ BEGIN
         Tasa_Mensual,
         Dep_Anual,
         Dep_Acum_Inicio,
-        INPC_Adqu,
-        INPC_Mitad_Ejercicio,
-        INPC_Mitad_Periodo,
+        INPCCompra,
+        INPCUtilizado,
         Meses_Uso_Inicio_Ejercicio,
         Meses_Uso_Hasta_Mitad_Periodo,
         Meses_Uso_En_Ejercicio,
@@ -333,9 +330,8 @@ BEGIN
         Tasa_Mensual,
         Dep_Anual,
         Dep_Acum_Inicio,
-        INPC_Adqu,
-        INPC_Mitad_Ejercicio,
-        INPC_Mitad_Periodo,
+        NULL,  -- INPCCompra: No aplica para extranjeros
+        NULL,  -- INPCUtilizado: No aplica para extranjeros
         Meses_Uso_Inicio_Ejercicio,
         Meses_Hasta_Mitad_Periodo,
         Meses_Uso_Ejercicio,
@@ -351,7 +347,7 @@ BEGIN
         FECHA_COMPRA,
         FECHA_BAJA,
         GETDATE(),
-        'v4.7-NO-LOTE'
+        'v4.8-SIN-INPC'
     FROM #ActivosCalculo
     WHERE Valor_MXN IS NOT NULL;
 

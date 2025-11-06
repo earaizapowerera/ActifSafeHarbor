@@ -98,7 +98,7 @@ LEFT JOIN INPC2 inpc_mitad
 WHERE a.ID_COMPANIA = @ID_Compania
   AND (a.STATUS = 'A' OR (a.STATUS = 'B' AND YEAR(a.FECHA_BAJA) = @Año_Calculo))
 
-  -- ⚠️ FILTRO DE PRUEBA - QUITAR EN PRODUCCIÓN
+  -- ⚠️ FILTRO DE PRUEBA - 86 activos hardcodeados para testing
   AND a.ID_NUM_ACTIVO IN (
       -- Compañía 188 - EXTRANJEROS ACTIVOS (10)
       44073, 44117, 44128, 44130, 44156,

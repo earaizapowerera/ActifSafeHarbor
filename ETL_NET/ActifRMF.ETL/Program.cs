@@ -474,7 +474,6 @@ public class ETLActivos
                  Nombre_TipoActivo, DESCRIPCION, ID_MONEDA, Nombre_Moneda,
                  ID_PAIS, Nombre_Pais, FECHA_COMPRA, FECHA_BAJA, FECHA_INICIO_DEP, STATUS,
                  FLG_PROPIO, Tasa_Anual, Tasa_Mensual, Dep_Acum_Inicio_Año,
-                 INPC_Adquisicion, INPC_Mitad_Ejercicio,
                  ManejaFiscal, ManejaUSGAAP, FECHA_INIC_DEPREC_3,
                  CostoUSD, CostoMXN,
                  Año_Calculo, Lote_Importacion)
@@ -483,7 +482,6 @@ public class ETLActivos
                  @Nombre_TipoActivo, @DESCRIPCION, @ID_MONEDA, @Nombre_Moneda,
                  @ID_PAIS, @Nombre_Pais, @FECHA_COMPRA, @FECHA_BAJA, @FECHA_INICIO_DEP, @STATUS,
                  @FLG_PROPIO, @Tasa_Anual, @Tasa_Mensual, @Dep_Acum_Inicio_Año,
-                 @INPC_Adquisicion, @INPC_Mitad_Ejercicio,
                  @ManejaFiscal, @ManejaUSGAAP, @FECHA_INIC_DEPREC_3,
                  @CostoUSD, @CostoMXN,
                  @Año_Calculo, @Lote_Importacion)", conn, transaction);
@@ -512,8 +510,6 @@ public class ETLActivos
         cmd.Parameters.AddWithValue("@Tasa_Mensual",
             row["Tasa_Anual"] != DBNull.Value ? Convert.ToDecimal(row["Tasa_Anual"]) / 100.0m / 12.0m : DBNull.Value);
         cmd.Parameters.AddWithValue("@Dep_Acum_Inicio_Año", row["Dep_Acum_Inicio_Año"] ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("@INPC_Adquisicion", row["INPC_Adquisicion"] ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("@INPC_Mitad_Ejercicio", row["INPC_Mitad_Ejercicio"] ?? DBNull.Value);
         cmd.Parameters.AddWithValue("@ManejaFiscal", manejaFiscal);
         cmd.Parameters.AddWithValue("@ManejaUSGAAP", manejaUSGAAP);
         cmd.Parameters.AddWithValue("@FECHA_INIC_DEPREC_3", row["FECHA_INIC_DEPREC3"] ?? DBNull.Value);

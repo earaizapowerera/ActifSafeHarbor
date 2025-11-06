@@ -49,9 +49,8 @@ BEGIN
         FECHA_BAJA DATE,
         ID_PAIS INT,
         Dep_Acum_Inicio DECIMAL(18,4),
-        INPC_Adqu DECIMAL(18,6),
-        INPC_Mitad_Ejercicio DECIMAL(18,6),
-        INPC_Mitad_Periodo DECIMAL(18,6),
+        INPCCompra DECIMAL(18,6),
+        INPCUtilizado DECIMAL(18,6),
         Meses_Uso_Inicio_Ejercicio INT,
         Meses_Hasta_Mitad_Periodo INT,
         Meses_Uso_Ejercicio INT,
@@ -76,8 +75,7 @@ BEGIN
     -- Criterio: ManejaFiscal='S' AND CostoMXN > 0 AND Tasa_Anual > 0
     INSERT INTO #ActivosCalculo (
         ID_Staging, ID_NUM_ACTIVO, MOI, Tasa_Anual, Tasa_Mensual,
-        FECHA_COMPRA, FECHA_INICIO_DEP, FECHA_BAJA, ID_PAIS, Dep_Acum_Inicio,
-        INPC_Adqu, INPC_Mitad_Ejercicio
+        FECHA_COMPRA, FECHA_INICIO_DEP, FECHA_BAJA, ID_PAIS, Dep_Acum_Inicio
     )
     SELECT
         s.ID_Staging,
@@ -85,13 +83,11 @@ BEGIN
         s.CostoMXN AS MOI,
         s.Tasa_Anual,
         s.Tasa_Mensual,
-        s.FECHA_COMPRA,  -- Para INPC (adquisición)
+        s.FECHA_COMPRA,
         s.FECHA_INICIO_DEP,  -- Para calcular meses de depreciación
         s.FECHA_BAJA,
         s.ID_PAIS,
-        ISNULL(s.Dep_Acum_Inicio_Año, 0) AS Dep_Acum_Inicio,  -- Usar histórico, NUNCA calcular
-        s.INPC_Adquisicion AS INPC_Adqu,
-        s.INPC_Mitad_Ejercicio
+        ISNULL(s.Dep_Acum_Inicio_Año, 0) AS Dep_Acum_Inicio  -- Usar histórico, NUNCA calcular
     FROM Staging_Activo s
     WHERE s.ID_Compania = @ID_Compania
       AND s.Año_Calculo = @Año_Calculo
@@ -179,51 +175,19 @@ BEGIN
             ELSE (Saldo_Inicio_Año - Dep_Ejercicio)
         END;
 
-    -- 11. Calcular Factor de Actualización del Saldo (INPC)
-    UPDATE #ActivosCalculo
-    SET Factor_Actualizacion_Saldo =
-        CASE
-            WHEN INPC_Adqu IS NOT NULL AND INPC_Adqu > 0 AND INPC_Mitad_Ejercicio IS NOT NULL
-            THEN INPC_Mitad_Ejercicio / INPC_Adqu
-            ELSE 1.0
-        END;
-
-    PRINT 'Factor de actualización de saldo calculado';
-
-    -- 12. Calcular Saldo Actualizado
-    UPDATE #ActivosCalculo
-    SET Saldo_Actualizado = Saldo_Inicio_Año * Factor_Actualizacion_Saldo;
-
-    -- 13. Obtener INPC de la mitad del periodo y calcular Factor de Actualización de Depreciación
-    -- INPC_Mitad_Periodo: mes correspondiente a la mitad del periodo usado en el ejercicio
-    UPDATE #ActivosCalculo
-    SET INPC_Mitad_Periodo = INPC_Mitad_Ejercicio;  -- Por simplicidad, usar INPC de junio
+    -- 11-16. Cálculos con INPC: Se harán DESPUÉS por programa externo
+    -- Los INPC se obtendrán según lógica SAT y se guardarán en Calculo_RMF
+    -- Por ahora, usar factor 1.0 (sin actualización) como placeholder
 
     UPDATE #ActivosCalculo
-    SET Factor_Actualizacion_Dep =
-        CASE
-            WHEN INPC_Adqu IS NOT NULL AND INPC_Adqu > 0 AND INPC_Mitad_Periodo IS NOT NULL
-            THEN INPC_Mitad_Periodo / INPC_Adqu
-            ELSE 1.0
-        END;
+    SET Factor_Actualizacion_Saldo = 1.0,
+        Saldo_Actualizado = Saldo_Inicio_Año,
+        Factor_Actualizacion_Dep = 1.0,
+        Dep_Actualizada = Dep_Ejercicio,
+        Valor_Promedio = Saldo_Inicio_Año - (Dep_Ejercicio * 0.5),
+        Proporcion = (Saldo_Inicio_Año - (Dep_Ejercicio * 0.5)) * (Meses_Uso_Ejercicio / 12.0);
 
-    PRINT 'Factor de actualización de depreciación calculado';
-
-    -- 14. Calcular Depreciación Actualizada
-    UPDATE #ActivosCalculo
-    SET Dep_Actualizada = Dep_Ejercicio * Factor_Actualizacion_Dep;
-
-    -- 15. Calcular Valor Promedio
-    -- Valor_Promedio = Saldo_Actualizado - (Dep_Actualizada × 0.5)
-    UPDATE #ActivosCalculo
-    SET Valor_Promedio = Saldo_Actualizado - (Dep_Actualizada * 0.5);
-
-    -- 16. Calcular Proporción
-    -- Proporcion = Valor_Promedio × (Meses_Uso_En_Ejercicio / 12)
-    UPDATE #ActivosCalculo
-    SET Proporcion = Valor_Promedio * (Meses_Uso_Ejercicio / 12.0);
-
-    PRINT 'Proporción con actualización INPC calculada';
+    PRINT 'Proporción calculada (sin actualización INPC - se aplicará después)';
 
     -- 17. APLICAR REGLA DEL MAYOR (Proporción vs 10% MOI)
     UPDATE #ActivosCalculo
@@ -263,7 +227,7 @@ BEGIN
         ID_Staging, ID_Compania, ID_NUM_ACTIVO, Año_Calculo, Tipo_Activo,
         ID_PAIS, Ruta_Calculo, Descripcion_Ruta,
         MOI, Tasa_Anual, Tasa_Mensual, Dep_Anual, Dep_Acum_Inicio,
-        INPC_Adqu, INPC_Mitad_Ejercicio, INPC_Mitad_Periodo,
+        INPCCompra, INPCUtilizado,
         Factor_Actualizacion_Saldo, Factor_Actualizacion_Dep,
         Saldo_Actualizado, Dep_Actualizada, Valor_Promedio,
         Meses_Uso_Inicio_Ejercicio, Meses_Uso_Hasta_Mitad_Periodo, Meses_Uso_En_Ejercicio,
@@ -276,14 +240,14 @@ BEGIN
         ID_Staging, @ID_Compania, ID_NUM_ACTIVO, @Año_Calculo, 'Nacional',
         ID_PAIS, Ruta_Calculo, Descripcion_Ruta,
         MOI, Tasa_Anual, Tasa_Mensual, Dep_Anual, Dep_Acum_Inicio,
-        INPC_Adqu, INPC_Mitad_Ejercicio, INPC_Mitad_Periodo,
+        INPCCompra, INPCUtilizado,  -- NULL por ahora, se actualizarán después
         Factor_Actualizacion_Saldo, Factor_Actualizacion_Dep,
         Saldo_Actualizado, Dep_Actualizada, Valor_Promedio,
         Meses_Uso_Inicio_Ejercicio, Meses_Hasta_Mitad_Periodo, Meses_Uso_Ejercicio,
         Saldo_Inicio_Año, Dep_Ejercicio, Monto_Pendiente, Proporcion,
         Prueba_10Pct, Aplica_Regla_10Pct,
         NULL, NULL, Valor_MXN,  -- No aplican USD ni TC para nacionales
-        FECHA_COMPRA, FECHA_BAJA, GETDATE(), 'v4.3-NO-LOTE'
+        FECHA_COMPRA, FECHA_BAJA, GETDATE(), 'v4.4-SIN-INPC'
     FROM #ActivosCalculo;
 
     SET @RegistrosProcesados = @@ROWCOUNT;
