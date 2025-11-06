@@ -180,10 +180,6 @@ BEGIN
     UPDATE #ActivosCalculo
     SET Dep_Anual = MOI * (Tasa_Anual / 100);
 
-    -- 2.5. Calcular INPC_Mitad_Periodo (para activos extranjeros es igual a INPC_Mitad_Ejercicio)
-    UPDATE #ActivosCalculo
-    SET INPC_Mitad_Periodo = INPC_Mitad_Ejercicio;
-
     -- 3. Calcular meses de uso al inicio del ejercicio
     UPDATE #ActivosCalculo
     SET Meses_Uso_Inicio_Ejercicio =
@@ -347,7 +343,7 @@ BEGIN
         FECHA_COMPRA,
         FECHA_BAJA,
         GETDATE(),
-        'v4.8-SIN-INPC'
+        'v4.9-LIMPIO'
     FROM #ActivosCalculo
     WHERE Valor_MXN IS NOT NULL;
 
@@ -393,7 +389,7 @@ BEGIN
 END
 GO
 
-PRINT 'Stored procedure sp_Calcular_RMF_Activos_Extranjeros v4.7 creado exitosamente';
+PRINT 'Stored procedure sp_Calcular_RMF_Activos_Extranjeros v4.9-LIMPIO creado exitosamente';
 GO
 
 -- =============================================

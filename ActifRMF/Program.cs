@@ -725,6 +725,8 @@ app.MapDelete("/api/companias/{id}", async (int id) =>
 // =============================================
 // ENDPOINT: Actualizar INPC
 // =============================================
+// COMENTADO TEMPORALMENTE - INPCService no existe
+/*
 app.MapPost("/api/inpc/actualizar", async (int? idGrupoSimulacion) =>
 {
     try
@@ -754,6 +756,7 @@ app.MapPost("/api/inpc/actualizar", async (int? idGrupoSimulacion) =>
     }
 })
 .WithName("ActualizarINPC");
+*/
 
 // =============================================
 // ENDPOINT: Estadísticas INPC
@@ -1119,34 +1122,34 @@ app.MapGet("/api/reporte", async (string? companias, int? año) =>
                 c.Meses_Uso_En_Ejercicio AS Meses_Uso_En_Ejercicio,
                 c.Dep_Acum_Inicio AS Dep_Fiscal_Acumulada_Inicio_Año,
                 c.Saldo_Inicio_Año AS Saldo_Por_Deducir_ISR_Al_Inicio_Año,
-                c.INPC_Adqu AS INPC_Adquisicion,
-                c.INPC_Mitad_Ejercicio AS INPC_Mitad_Ejercicio,
+                c.INPCCompra AS INPC_Adquisicion,
+                c.INPCUtilizado AS INPC_Mitad_Ejercicio,
                 -- Factor de actualización paso 1
                 CASE
-                    WHEN c.INPC_Adqu > 0 THEN ROUND(c.INPC_Mitad_Ejercicio / c.INPC_Adqu, 4)
+                    WHEN c.INPCCompra > 0 THEN ROUND(c.INPCUtilizado / c.INPCCompra, 4)
                     ELSE NULL
                 END AS Factor_Actualizacion_Paso1,
                 -- Saldo actualizado paso 1
                 CASE
-                    WHEN c.INPC_Adqu > 0 THEN c.Saldo_Inicio_Año * ROUND(c.INPC_Mitad_Ejercicio / c.INPC_Adqu, 4)
+                    WHEN c.INPCCompra > 0 THEN c.Saldo_Inicio_Año * ROUND(c.INPCUtilizado / c.INPCCompra, 4)
                     ELSE c.Saldo_Inicio_Año
                 END AS Saldo_Actualizado_Paso1,
                 c.Dep_Fiscal_Ejercicio AS Depreciacion_Fiscal_Del_Ejercicio,
-                c.INPC_Adqu AS INPC_Adqu_Paso2,
-                c.INPC_Mitad_Periodo AS INPC_Mitad_Periodo,
+                c.INPCCompra AS INPC_Adqu_Paso2,
+                c.INPCUtilizado AS INPC_Mitad_Periodo,
                 -- Factor de actualización paso 2
                 CASE
-                    WHEN c.INPC_Adqu > 0 THEN ROUND(c.INPC_Mitad_Periodo / c.INPC_Adqu, 4)
+                    WHEN c.INPCCompra > 0 THEN ROUND(c.INPCUtilizado / c.INPCCompra, 4)
                     ELSE NULL
                 END AS Factor_Actualizacion_Paso2,
                 -- Depreciación fiscal actualizada
                 CASE
-                    WHEN c.INPC_Adqu > 0 THEN c.Dep_Fiscal_Ejercicio * ROUND(c.INPC_Mitad_Periodo / c.INPC_Adqu, 4)
+                    WHEN c.INPCCompra > 0 THEN c.Dep_Fiscal_Ejercicio * ROUND(c.INPCUtilizado / c.INPCCompra, 4)
                     ELSE c.Dep_Fiscal_Ejercicio
                 END AS Depreciacion_Fiscal_Actualizada,
                 -- 50% de la depreciación fiscal
                 CASE
-                    WHEN c.INPC_Adqu > 0 THEN (c.Dep_Fiscal_Ejercicio * ROUND(c.INPC_Mitad_Periodo / c.INPC_Adqu, 4)) * 0.5
+                    WHEN c.INPCCompra > 0 THEN (c.Dep_Fiscal_Ejercicio * ROUND(c.INPCUtilizado / c.INPCCompra, 4)) * 0.5
                     ELSE c.Dep_Fiscal_Ejercicio * 0.5
                 END AS Mitad_Depreciacion_Fiscal,
                 -- Valor promedio (paso 3)
@@ -1157,7 +1160,7 @@ app.MapGet("/api/reporte", async (string? companias, int? año) =>
                 -- Saldo fiscal histórico y actualizado
                 (c.MOI - c.Dep_Acum_Inicio - c.Dep_Fiscal_Ejercicio) AS Saldo_Fiscal_Por_Deducir_Historico,
                 CASE
-                    WHEN c.INPC_Adqu > 0 THEN (c.MOI - c.Dep_Acum_Inicio - c.Dep_Fiscal_Ejercicio) * ROUND(c.INPC_Mitad_Periodo / c.INPC_Adqu, 4)
+                    WHEN c.INPCCompra > 0 THEN (c.MOI - c.Dep_Acum_Inicio - c.Dep_Fiscal_Ejercicio) * ROUND(c.INPCUtilizado / c.INPCCompra, 4)
                     ELSE (c.MOI - c.Dep_Acum_Inicio - c.Dep_Fiscal_Ejercicio)
                 END AS Saldo_Fiscal_Por_Deducir_Actualizado,
                 CASE
@@ -1189,33 +1192,47 @@ app.MapGet("/api/reporte", async (string? companias, int? año) =>
             using var reader = await command.ExecuteReaderAsync();
             while (await reader.ReadAsync())
             {
-                extranjeros.Add(new
+                try
                 {
-                    nombreCompania = reader.IsDBNull(0) ? null : reader.GetString(0),
-                    idCompania = reader.GetInt32(1),
-                    folio = reader.IsDBNull(2) ? (int?)null : reader.GetInt32(2),
-                    placa = reader.IsDBNull(3) ? null : reader.GetString(3),
-                    descripcion = reader.IsDBNull(4) ? null : reader.GetString(4),
-                    tipo = reader.IsDBNull(5) ? null : reader.GetString(5),
-                    fechaAdquisicion = reader.IsDBNull(6) ? (DateTime?)null : reader.GetDateTime(6),
-                    fechaBaja = reader.IsDBNull(7) ? (DateTime?)null : reader.GetDateTime(7),
-                    moi = reader.GetDecimal(8),
-                    anualRate = reader.IsDBNull(9) ? (decimal?)null : reader.GetDecimal(9),
-                    monthRate = reader.IsDBNull(10) ? (decimal?)null : reader.GetDecimal(10),
-                    deprecAnual = reader.IsDBNull(11) ? (decimal?)null : reader.GetDecimal(11),
-                    mesesUsoAlInicioEjercicio = reader.GetInt32(12),
-                    mesesUsoHastaMitadPeriodo = reader.GetInt32(13),
-                    mesesUsoEnEjercicio = reader.GetInt32(14),
-                    depFiscalAcumuladaInicioAño = reader.GetDecimal(15),
-                    saldoPorDeducirISRAlInicioAño = reader.GetDecimal(16),
-                    depreciacionFiscalDelEjercicio = reader.GetDecimal(17),
-                    montoPendientePorDeducir = reader.IsDBNull(18) ? (decimal?)null : reader.GetDecimal(18),
-                    proporcionMontoPendientePorDeducir = reader.IsDBNull(19) ? (decimal?)null : reader.GetDecimal(19),
-                    pruebaDel10PctMOI = reader.IsDBNull(20) ? (decimal?)null : reader.GetDecimal(20),
-                    tipoCambio30Junio = reader.IsDBNull(21) ? (decimal?)null : reader.GetDecimal(21),
-                    valorProporcionalAñoPesos = reader.GetDecimal(22),
-                    observaciones = reader.IsDBNull(23) ? null : reader.GetString(23)
-                });
+                    extranjeros.Add(new
+                    {
+                        nombreCompania = reader.IsDBNull(0) ? null : reader.GetString(0),
+                        idCompania = reader.GetInt32(1),
+                        folio = reader.IsDBNull(2) ? (int?)null : reader.GetInt32(2),
+                        placa = reader.IsDBNull(3) ? null : reader.GetString(3),
+                        descripcion = reader.IsDBNull(4) ? null : reader.GetString(4),
+                        tipo = reader.IsDBNull(5) ? null : reader.GetString(5),
+                        fechaAdquisicion = reader.IsDBNull(6) ? (DateTime?)null : reader.GetDateTime(6),
+                        fechaBaja = reader.IsDBNull(7) ? (DateTime?)null : reader.GetDateTime(7),
+                        moi = reader.GetDecimal(8),
+                        anualRate = reader.IsDBNull(9) ? (decimal?)null : reader.GetDecimal(9),
+                        monthRate = reader.IsDBNull(10) ? (decimal?)null : reader.GetDecimal(10),
+                        deprecAnual = reader.IsDBNull(11) ? (decimal?)null : reader.GetDecimal(11),
+                        mesesUsoAlInicioEjercicio = reader.GetInt32(12),
+                        mesesUsoHastaMitadPeriodo = reader.GetInt32(13),
+                        mesesUsoEnEjercicio = reader.GetInt32(14),
+                        depFiscalAcumuladaInicioAño = reader.GetDecimal(15),
+                        saldoPorDeducirISRAlInicioAño = reader.GetDecimal(16),
+                        depreciacionFiscalDelEjercicio = reader.GetDecimal(17),
+                        montoPendientePorDeducir = reader.IsDBNull(18) ? (decimal?)null : reader.GetDecimal(18),
+                        proporcionMontoPendientePorDeducir = reader.IsDBNull(19) ? (decimal?)null : reader.GetDecimal(19),
+                        pruebaDel10PctMOI = reader.IsDBNull(20) ? (decimal?)null : reader.GetDecimal(20),
+                        tipoCambio30Junio = reader.IsDBNull(21) ? (decimal?)null : reader.GetDecimal(21),
+                        valorProporcionalAñoPesos = reader.GetDecimal(22),
+                        observaciones = reader.IsDBNull(23) ? null : reader.GetString(23)
+                    });
+                }
+                catch (Exception ex)
+                {
+                    var errorMsg = $"ERROR reading extranjeros record: {ex.Message}\n";
+                    errorMsg += "Column types:\n";
+                    for (int i = 0; i < reader.FieldCount; i++)
+                    {
+                        errorMsg += $"  [{i}] {reader.GetName(i)} = {reader.GetFieldType(i).Name} (IsDBNull: {reader.IsDBNull(i)})\n";
+                    }
+                    Console.Error.WriteLine(errorMsg);
+                    throw new Exception(errorMsg, ex);
+                }
             }
         }
 
@@ -1258,10 +1275,12 @@ app.MapGet("/api/reporte", async (string? companias, int? año) =>
                     mitadDepreciacionFiscal = reader.IsDBNull(25) ? (decimal?)null : reader.GetDecimal(25),
                     valorPromedio = reader.IsDBNull(26) ? (decimal?)null : reader.GetDecimal(26),
                     valorPromedioProporcionalAño = reader.IsDBNull(27) ? (decimal?)null : reader.GetDecimal(27),
-                    saldoFiscalPorDeducirHistorico = reader.IsDBNull(28) ? (decimal?)null : reader.GetDecimal(28),
-                    saldoFiscalPorDeducirActualizado = reader.IsDBNull(29) ? (decimal?)null : reader.GetDecimal(29),
-                    estadoActivoBaja = reader.IsDBNull(30) ? null : reader.GetString(30),
-                    observaciones = reader.IsDBNull(31) ? null : reader.GetString(31)
+                    pruebaDel10PctMOI = reader.IsDBNull(28) ? (decimal?)null : reader.GetDecimal(28),
+                    valorReportableSafeHarbor = reader.IsDBNull(29) ? (decimal?)null : reader.GetDecimal(29),
+                    saldoFiscalPorDeducirHistorico = reader.IsDBNull(30) ? (decimal?)null : reader.GetDecimal(30),
+                    saldoFiscalPorDeducirActualizado = reader.IsDBNull(31) ? (decimal?)null : reader.GetDecimal(31),
+                    estadoActivoBaja = reader.IsDBNull(32) ? null : reader.GetString(32),
+                    observaciones = reader.IsDBNull(33) ? null : reader.GetString(33)
                 });
             }
         }
@@ -1280,6 +1299,14 @@ app.MapGet("/api/reporte", async (string? companias, int? año) =>
     }
     catch (Exception ex)
     {
+        Console.Error.WriteLine($"EXCEPTION in /api/reporte endpoint:");
+        Console.Error.WriteLine($"Message: {ex.Message}");
+        Console.Error.WriteLine($"Stack Trace: {ex.StackTrace}");
+        if (ex.InnerException != null)
+        {
+            Console.Error.WriteLine($"Inner Exception: {ex.InnerException.Message}");
+            Console.Error.WriteLine($"Inner Stack Trace: {ex.InnerException.StackTrace}");
+        }
         return Results.Problem($"Error: {ex.Message}");
     }
 })

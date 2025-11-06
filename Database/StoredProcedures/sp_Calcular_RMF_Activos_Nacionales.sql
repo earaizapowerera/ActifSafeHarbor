@@ -52,7 +52,7 @@ BEGIN
         INPCCompra DECIMAL(18,6),
         INPCUtilizado DECIMAL(18,6),
         Meses_Uso_Inicio_Ejercicio INT,
-        Meses_Hasta_Mitad_Periodo INT,
+        Meses_Uso_Hasta_Mitad_Periodo INT,
         Meses_Uso_Ejercicio INT,
         Saldo_Inicio_Año DECIMAL(18,4),
         Dep_Ejercicio DECIMAL(18,4),
@@ -120,14 +120,17 @@ BEGIN
             ELSE DATEDIFF(MONTH, FECHA_INICIO_DEP, CAST(CAST(@Año_Anterior AS VARCHAR(4)) + '-12-31' AS DATE)) + 1
         END;
 
-    -- 6. Calcular meses hasta la mitad del periodo
+    -- 6. Calcular meses hasta la mitad del periodo (para depreciación en el ejercicio)
     UPDATE #ActivosCalculo
-    SET Meses_Hasta_Mitad_Periodo =
+    SET Meses_Uso_Hasta_Mitad_Periodo =
         CASE
+            -- Caso: Activo dado de baja en el año
             WHEN FECHA_BAJA IS NOT NULL AND YEAR(FECHA_BAJA) = @Año_Calculo
             THEN MONTH(FECHA_BAJA) / 2
+            -- Caso: Activo existente desde antes del año (usa enero a junio = 6 meses)
             WHEN FECHA_COMPRA < CAST(CAST(@Año_Calculo AS VARCHAR(4)) + '-01-01' AS DATE)
             THEN 6
+            -- Caso: Activo adquirido en el año
             ELSE (13 - MONTH(FECHA_COMPRA)) / 2
         END;
 
@@ -175,7 +178,7 @@ BEGIN
             ELSE (Saldo_Inicio_Año - Dep_Ejercicio)
         END;
 
-    -- 11-16. Cálculos con INPC: Se harán DESPUÉS por programa externo
+    -- 11-16. Cálculos con INPC: Se harán DESPUÉS por sp_Actualizar_INPC_Nacionales
     -- Los INPC se obtendrán según lógica SAT y se guardarán en Calculo_RMF
     -- Por ahora, usar factor 1.0 (sin actualización) como placeholder
 
@@ -240,14 +243,14 @@ BEGIN
         ID_Staging, @ID_Compania, ID_NUM_ACTIVO, @Año_Calculo, 'Nacional',
         ID_PAIS, Ruta_Calculo, Descripcion_Ruta,
         MOI, Tasa_Anual, Tasa_Mensual, Dep_Anual, Dep_Acum_Inicio,
-        INPCCompra, INPCUtilizado,  -- NULL por ahora, se actualizarán después
+        INPCCompra, INPCUtilizado,  -- NULL por ahora, se actualizarán después por sp_Actualizar_INPC_Nacionales
         Factor_Actualizacion_Saldo, Factor_Actualizacion_Dep,
         Saldo_Actualizado, Dep_Actualizada, Valor_Promedio,
-        Meses_Uso_Inicio_Ejercicio, Meses_Hasta_Mitad_Periodo, Meses_Uso_Ejercicio,
+        Meses_Uso_Inicio_Ejercicio, Meses_Uso_Hasta_Mitad_Periodo, Meses_Uso_Ejercicio,
         Saldo_Inicio_Año, Dep_Ejercicio, Monto_Pendiente, Proporcion,
         Prueba_10Pct, Aplica_Regla_10Pct,
         NULL, NULL, Valor_MXN,  -- No aplican USD ni TC para nacionales
-        FECHA_COMPRA, FECHA_BAJA, GETDATE(), 'v4.4-SIN-INPC'
+        FECHA_COMPRA, FECHA_BAJA, GETDATE(), 'v4.5-LIMPIO'
     FROM #ActivosCalculo;
 
     SET @RegistrosProcesados = @@ROWCOUNT;
