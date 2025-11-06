@@ -316,61 +316,210 @@ public class ETLActivos
     private async Task<int> ProcesarYCargarActivos(
         DataTable dtActivos, int idCompania, int añoCalculo, Guid loteImportacion, decimal tipoCambio30Junio, long idLog)
     {
-        using var conn = new SqlConnection(ConnStrDestino);
-        await conn.OpenAsync();
+        // 1. PREPARAR DataTable con todas las transformaciones
+        Console.WriteLine("Transformando datos en memoria...");
+        DataTable dtStaging = PrepararDataTableStaging(dtActivos, idCompania, añoCalculo, loteImportacion, tipoCambio30Junio);
 
-        int registrosCargados = 0;
-        int batchSize = 100;
-        int totalRows = dtActivos.Rows.Count;
-        int ultimoRegistroActualizado = 0;
-        DateTime ultimaActualizacionTiempo = DateTime.Now;
-        TimeSpan intervaloTiempo = TimeSpan.FromSeconds(10); // Actualizar cada 10 segundos
+        int totalRows = dtStaging.Rows.Count;
+        Console.WriteLine($"Total preparado: {totalRows} registros");
+        Console.WriteLine();
 
-        for (int i = 0; i < totalRows; i += batchSize)
+        // 2. BULK INSERT usando SqlBulkCopy
+        Console.WriteLine("Insertando datos con SqlBulkCopy...");
+        using var bulkCopy = new SqlBulkCopy(ConnStrDestino);
+        bulkCopy.DestinationTableName = "Staging_Activo";
+        bulkCopy.BatchSize = 1000;
+        bulkCopy.BulkCopyTimeout = 300; // 5 minutos
+
+        // 3. Mapear columnas
+        MapearColumnasBulkCopy(bulkCopy);
+
+        // 4. Progreso
+        int registrosProcesados = 0;
+        bulkCopy.NotifyAfter = 100;
+        bulkCopy.SqlRowsCopied += (sender, e) => {
+            registrosProcesados = (int)e.RowsCopied;
+            Console.WriteLine($"  Procesados: {e.RowsCopied} / {totalRows}");
+
+            // Actualizar progreso en BD
+            Task.Run(async () => await ActualizarProgresoEnBD(idLog, (int)e.RowsCopied, totalRows)).Wait();
+        };
+
+        // 5. Insertar TODO
+        await bulkCopy.WriteToServerAsync(dtStaging);
+
+        Console.WriteLine($"✅ SqlBulkCopy completado: {totalRows} registros");
+
+        return totalRows;
+    }
+
+    private DataTable PrepararDataTableStaging(DataTable dtOrigen, int idCompania, int añoCalculo, Guid loteImportacion, decimal tipoCambio30Junio)
+    {
+        // Crear estructura de tabla Staging_Activo
+        DataTable dtStaging = new DataTable();
+
+        // Definir columnas
+        dtStaging.Columns.Add("ID_Compania", typeof(int));
+        dtStaging.Columns.Add("ID_NUM_ACTIVO", typeof(int));
+        dtStaging.Columns.Add("ID_ACTIVO", typeof(string));
+        dtStaging.Columns.Add("ID_TIPO_ACTIVO", typeof(int));
+        dtStaging.Columns.Add("ID_SUBTIPO_ACTIVO", typeof(int));
+        dtStaging.Columns.Add("Nombre_TipoActivo", typeof(string));
+        dtStaging.Columns.Add("DESCRIPCION", typeof(string));
+        dtStaging.Columns.Add("ID_MONEDA", typeof(int));
+        dtStaging.Columns.Add("Nombre_Moneda", typeof(string));
+        dtStaging.Columns.Add("ID_PAIS", typeof(int));
+        dtStaging.Columns.Add("Nombre_Pais", typeof(string));
+        dtStaging.Columns.Add("FECHA_COMPRA", typeof(DateTime));
+        dtStaging.Columns.Add("FECHA_BAJA", typeof(DateTime));
+        dtStaging.Columns.Add("FECHA_INICIO_DEP", typeof(DateTime));
+        dtStaging.Columns.Add("STATUS", typeof(string));
+        dtStaging.Columns.Add("FLG_PROPIO", typeof(int));
+        dtStaging.Columns.Add("Tasa_Anual", typeof(decimal));
+        dtStaging.Columns.Add("Tasa_Mensual", typeof(decimal));
+        dtStaging.Columns.Add("Dep_Acum_Inicio_Año", typeof(decimal));
+        dtStaging.Columns.Add("ManejaFiscal", typeof(string));
+        dtStaging.Columns.Add("ManejaUSGAAP", typeof(string));
+        dtStaging.Columns.Add("FECHA_INIC_DEPREC_3", typeof(DateTime));
+        dtStaging.Columns.Add("CostoUSD", typeof(decimal));
+        dtStaging.Columns.Add("CostoMXN", typeof(decimal));
+        dtStaging.Columns.Add("Año_Calculo", typeof(int));
+        dtStaging.Columns.Add("Lote_Importacion", typeof(Guid));
+
+        // Transformar y copiar datos
+        foreach (DataRow rowOrigen in dtOrigen.Rows)
         {
-            int rowsToProcess = Math.Min(batchSize, totalRows - i);
+            string manejaFiscal = rowOrigen["ManejaFiscal"].ToString() ?? "N";
+            string manejaUSGAAP = rowOrigen["ManejaUSGAAP"].ToString() ?? "N";
 
-            using var transaction = conn.BeginTransaction();
-            try
+            // ERROR DE DEDO: Si ambos están activos, omitir
+            if (manejaFiscal == "S" && manejaUSGAAP == "S")
             {
-                for (int j = 0; j < rowsToProcess; j++)
+                Console.WriteLine($"⚠️  ADVERTENCIA: Activo {rowOrigen["ID_NUM_ACTIVO"]} tiene ambos flags activos - OMITIDO");
+                continue;
+            }
+
+            // Calcular costos según tipo
+            decimal? costoUSD = null;
+            decimal? costoMXN = null;
+
+            if (manejaUSGAAP == "S")
+            {
+                decimal costoReexpresado = rowOrigen["COSTO_REEXPRESADO"] != DBNull.Value
+                    ? Convert.ToDecimal(rowOrigen["COSTO_REEXPRESADO"])
+                    : 0;
+
+                if (costoReexpresado > 0)
                 {
-                    DataRow row = dtActivos.Rows[i + j];
-                    await InsertarActivoStaging(conn, transaction, row, idCompania, añoCalculo, loteImportacion, tipoCambio30Junio);
-                    registrosCargados++;
+                    costoUSD = costoReexpresado;
+                }
+                else if (rowOrigen["COSTO_ADQUISICION"] != DBNull.Value)
+                {
+                    decimal costoAdquisicion = Convert.ToDecimal(rowOrigen["COSTO_ADQUISICION"]);
+                    if (costoAdquisicion > 0)
+                        costoUSD = costoAdquisicion;
                 }
 
-                await transaction.CommitAsync();
-                Console.WriteLine($"  Procesados: {Math.Min(i + batchSize, totalRows)} / {totalRows}");
+                if (costoUSD.HasValue)
+                    costoMXN = costoUSD * tipoCambio30Junio;
+            }
+            else if (manejaFiscal == "S")
+            {
+                decimal costoRevaluado = rowOrigen["COSTO_REVALUADO"] != DBNull.Value
+                    ? Convert.ToDecimal(rowOrigen["COSTO_REVALUADO"])
+                    : 0;
 
-                // Actualizar progreso en BD si:
-                // 1. El número de registros cambió desde la última actualización, O
-                // 2. Han pasado 10 segundos desde la última actualización
-                TimeSpan tiempoTranscurrido = DateTime.Now - ultimaActualizacionTiempo;
-                bool cambioRegistros = registrosCargados != ultimoRegistroActualizado;
-                bool pasaron10Segundos = tiempoTranscurrido >= intervaloTiempo;
-
-                if (cambioRegistros || pasaron10Segundos)
+                if (costoRevaluado > 0)
                 {
-                    await ActualizarProgresoEnBD(idLog, registrosCargados, totalRows);
-                    ultimoRegistroActualizado = registrosCargados;
-                    ultimaActualizacionTiempo = DateTime.Now;
+                    costoMXN = costoRevaluado;
+                }
+                else if (rowOrigen["COSTO_ADQUISICION"] != DBNull.Value)
+                {
+                    decimal costoAdquisicion = Convert.ToDecimal(rowOrigen["COSTO_ADQUISICION"]);
+                    if (costoAdquisicion > 0)
+                        costoMXN = costoAdquisicion;
                 }
             }
-            catch
+            else
             {
-                await transaction.RollbackAsync();
-                throw;
+                if (rowOrigen["COSTO_ADQUISICION"] != DBNull.Value)
+                    costoMXN = Convert.ToDecimal(rowOrigen["COSTO_ADQUISICION"]);
             }
+
+            // Calcular Tasa_Mensual
+            decimal? tasaMensual = null;
+            if (rowOrigen["Tasa_Anual"] != DBNull.Value)
+            {
+                tasaMensual = Convert.ToDecimal(rowOrigen["Tasa_Anual"]) / 100.0m / 12.0m;
+            }
+
+            // Crear fila staging
+            DataRow rowStaging = dtStaging.NewRow();
+
+            rowStaging["ID_Compania"] = rowOrigen["ID_COMPANIA"];
+            rowStaging["ID_NUM_ACTIVO"] = rowOrigen["ID_NUM_ACTIVO"];
+            rowStaging["ID_ACTIVO"] = rowOrigen["ID_ACTIVO"] ?? DBNull.Value;
+            rowStaging["ID_TIPO_ACTIVO"] = rowOrigen["ID_TIPO_ACTIVO"] ?? DBNull.Value;
+            rowStaging["ID_SUBTIPO_ACTIVO"] = rowOrigen["ID_SUBTIPO_ACTIVO"] ?? DBNull.Value;
+            rowStaging["Nombre_TipoActivo"] = rowOrigen["Nombre_TipoActivo"] ?? DBNull.Value;
+            rowStaging["DESCRIPCION"] = rowOrigen["DESCRIPCION"] ?? DBNull.Value;
+            rowStaging["ID_MONEDA"] = rowOrigen["ID_MONEDA"] ?? DBNull.Value;
+            rowStaging["Nombre_Moneda"] = rowOrigen["Nombre_Moneda"] ?? DBNull.Value;
+            rowStaging["ID_PAIS"] = rowOrigen["ID_PAIS"];
+            rowStaging["Nombre_Pais"] = rowOrigen["Nombre_Pais"] ?? DBNull.Value;
+            rowStaging["FECHA_COMPRA"] = rowOrigen["FECHA_COMPRA"] ?? DBNull.Value;
+            rowStaging["FECHA_BAJA"] = rowOrigen["FECHA_BAJA"] ?? DBNull.Value;
+            rowStaging["FECHA_INICIO_DEP"] = rowOrigen["FECHA_INIC_DEPREC"] ?? DBNull.Value;
+            rowStaging["STATUS"] = rowOrigen["STATUS"] ?? DBNull.Value;
+
+            int flgPropio = rowOrigen["FLG_PROPIO"].ToString() == "S" ? 1 : 0;
+            rowStaging["FLG_PROPIO"] = flgPropio;
+
+            rowStaging["Tasa_Anual"] = rowOrigen["Tasa_Anual"] ?? DBNull.Value;
+            rowStaging["Tasa_Mensual"] = tasaMensual.HasValue ? (object)tasaMensual.Value : DBNull.Value;
+            rowStaging["Dep_Acum_Inicio_Año"] = rowOrigen["Dep_Acum_Inicio_Año"] ?? DBNull.Value;
+            rowStaging["ManejaFiscal"] = manejaFiscal;
+            rowStaging["ManejaUSGAAP"] = manejaUSGAAP;
+            rowStaging["FECHA_INIC_DEPREC_3"] = rowOrigen["FECHA_INIC_DEPREC3"] ?? DBNull.Value;
+            rowStaging["CostoUSD"] = costoUSD.HasValue ? (object)costoUSD.Value : DBNull.Value;
+            rowStaging["CostoMXN"] = costoMXN.HasValue ? (object)costoMXN.Value : DBNull.Value;
+            rowStaging["Año_Calculo"] = añoCalculo;
+            rowStaging["Lote_Importacion"] = loteImportacion;
+
+            dtStaging.Rows.Add(rowStaging);
         }
 
-        // Actualización final para asegurar que el último estado se guarde
-        if (registrosCargados != ultimoRegistroActualizado)
-        {
-            await ActualizarProgresoEnBD(idLog, registrosCargados, totalRows);
-        }
+        return dtStaging;
+    }
 
-        return registrosCargados;
+    private void MapearColumnasBulkCopy(SqlBulkCopy bulkCopy)
+    {
+        bulkCopy.ColumnMappings.Add("ID_Compania", "ID_Compania");
+        bulkCopy.ColumnMappings.Add("ID_NUM_ACTIVO", "ID_NUM_ACTIVO");
+        bulkCopy.ColumnMappings.Add("ID_ACTIVO", "ID_ACTIVO");
+        bulkCopy.ColumnMappings.Add("ID_TIPO_ACTIVO", "ID_TIPO_ACTIVO");
+        bulkCopy.ColumnMappings.Add("ID_SUBTIPO_ACTIVO", "ID_SUBTIPO_ACTIVO");
+        bulkCopy.ColumnMappings.Add("Nombre_TipoActivo", "Nombre_TipoActivo");
+        bulkCopy.ColumnMappings.Add("DESCRIPCION", "DESCRIPCION");
+        bulkCopy.ColumnMappings.Add("ID_MONEDA", "ID_MONEDA");
+        bulkCopy.ColumnMappings.Add("Nombre_Moneda", "Nombre_Moneda");
+        bulkCopy.ColumnMappings.Add("ID_PAIS", "ID_PAIS");
+        bulkCopy.ColumnMappings.Add("Nombre_Pais", "Nombre_Pais");
+        bulkCopy.ColumnMappings.Add("FECHA_COMPRA", "FECHA_COMPRA");
+        bulkCopy.ColumnMappings.Add("FECHA_BAJA", "FECHA_BAJA");
+        bulkCopy.ColumnMappings.Add("FECHA_INICIO_DEP", "FECHA_INICIO_DEP");
+        bulkCopy.ColumnMappings.Add("STATUS", "STATUS");
+        bulkCopy.ColumnMappings.Add("FLG_PROPIO", "FLG_PROPIO");
+        bulkCopy.ColumnMappings.Add("Tasa_Anual", "Tasa_Anual");
+        bulkCopy.ColumnMappings.Add("Tasa_Mensual", "Tasa_Mensual");
+        bulkCopy.ColumnMappings.Add("Dep_Acum_Inicio_Año", "Dep_Acum_Inicio_Año");
+        bulkCopy.ColumnMappings.Add("ManejaFiscal", "ManejaFiscal");
+        bulkCopy.ColumnMappings.Add("ManejaUSGAAP", "ManejaUSGAAP");
+        bulkCopy.ColumnMappings.Add("FECHA_INIC_DEPREC_3", "FECHA_INIC_DEPREC_3");
+        bulkCopy.ColumnMappings.Add("CostoUSD", "CostoUSD");
+        bulkCopy.ColumnMappings.Add("CostoMXN", "CostoMXN");
+        bulkCopy.ColumnMappings.Add("Año_Calculo", "Año_Calculo");
+        bulkCopy.ColumnMappings.Add("Lote_Importacion", "Lote_Importacion");
     }
 
     private async Task ActualizarProgresoEnBD(long idLog, int registrosProcesados, int totalRegistros)
@@ -390,136 +539,6 @@ public class ETLActivos
         Console.WriteLine($"[PROGRESO] Actualizado en BD: {registrosProcesados}/{totalRegistros}");
     }
 
-    private async Task InsertarActivoStaging(
-        SqlConnection conn, SqlTransaction transaction, DataRow row,
-        int idCompania, int añoCalculo, Guid loteImportacion, decimal tipoCambio30Junio)
-    {
-        // Determinar CostoUSD y CostoMXN según reglas:
-        // - Si ManejaUSGAAP='S': CostoUSD = COSTO_REEXPRESADO, CostoMXN = COSTO_REEXPRESADO * TC
-        // - Si ManejaFiscal='S': CostoMXN = COSTO_REVALUADO (directo), CostoUSD = NULL
-        // - Si no tiene ninguno: usar COSTO_ADQUISICION
-
-        string manejaFiscal = row["ManejaFiscal"].ToString() ?? "N";
-        string manejaUSGAAP = row["ManejaUSGAAP"].ToString() ?? "N";
-
-        // ERROR DE DEDO: Si ambos están activos, es un error - NO procesar
-        if (manejaFiscal == "S" && manejaUSGAAP == "S")
-        {
-            Console.WriteLine($"⚠️  ADVERTENCIA: Activo {row["ID_NUM_ACTIVO"]} tiene ambos flags activos (Fiscal Y USGAAP) - OMITIDO por error de dedo");
-            return;  // NO insertar este activo
-        }
-
-        decimal? costoUSD = null;
-        decimal? costoMXN = null;
-
-        if (manejaUSGAAP == "S")
-        {
-            // USGAAP: Costo en USD, convertir a MXN
-            decimal costoReexpresado = row["COSTO_REEXPRESADO"] != DBNull.Value
-                ? Convert.ToDecimal(row["COSTO_REEXPRESADO"])
-                : 0;
-
-            // Si COSTO_REEXPRESADO es 0, usar COSTO_ADQUISICION como fallback
-            if (costoReexpresado > 0)
-            {
-                costoUSD = costoReexpresado;
-            }
-            else if (row["COSTO_ADQUISICION"] != DBNull.Value)
-            {
-                decimal costoAdquisicion = Convert.ToDecimal(row["COSTO_ADQUISICION"]);
-                if (costoAdquisicion > 0)
-                {
-                    costoUSD = costoAdquisicion;
-                }
-            }
-
-            if (costoUSD.HasValue)
-            {
-                costoMXN = costoUSD * tipoCambio30Junio;
-            }
-        }
-        else if (manejaFiscal == "S")
-        {
-            // Fiscal: Costo ya en MXN
-            decimal costoRevaluado = row["COSTO_REVALUADO"] != DBNull.Value
-                ? Convert.ToDecimal(row["COSTO_REVALUADO"])
-                : 0;
-
-            // Si COSTO_REVALUADO es 0, usar COSTO_ADQUISICION como fallback
-            if (costoRevaluado > 0)
-            {
-                costoMXN = costoRevaluado;
-            }
-            else if (row["COSTO_ADQUISICION"] != DBNull.Value)
-            {
-                decimal costoAdquisicion = Convert.ToDecimal(row["COSTO_ADQUISICION"]);
-                if (costoAdquisicion > 0)
-                {
-                    costoMXN = costoAdquisicion;
-                }
-            }
-        }
-        else
-        {
-            // Sin USGAAP ni Fiscal: usar costo adquisición
-            if (row["COSTO_ADQUISICION"] != DBNull.Value)
-            {
-                costoMXN = Convert.ToDecimal(row["COSTO_ADQUISICION"]);
-            }
-        }
-
-        var cmd = new SqlCommand(@"
-            INSERT INTO Staging_Activo
-                (ID_Compania, ID_NUM_ACTIVO, ID_ACTIVO, ID_TIPO_ACTIVO, ID_SUBTIPO_ACTIVO,
-                 Nombre_TipoActivo, DESCRIPCION, ID_MONEDA, Nombre_Moneda,
-                 ID_PAIS, Nombre_Pais, FECHA_COMPRA, FECHA_BAJA, FECHA_INICIO_DEP, STATUS,
-                 FLG_PROPIO, Tasa_Anual, Tasa_Mensual, Dep_Acum_Inicio_Año,
-                 ManejaFiscal, ManejaUSGAAP, FECHA_INIC_DEPREC_3,
-                 CostoUSD, CostoMXN,
-                 Año_Calculo, Lote_Importacion)
-            VALUES
-                (@ID_Compania, @ID_NUM_ACTIVO, @ID_ACTIVO, @ID_TIPO_ACTIVO, @ID_SUBTIPO_ACTIVO,
-                 @Nombre_TipoActivo, @DESCRIPCION, @ID_MONEDA, @Nombre_Moneda,
-                 @ID_PAIS, @Nombre_Pais, @FECHA_COMPRA, @FECHA_BAJA, @FECHA_INICIO_DEP, @STATUS,
-                 @FLG_PROPIO, @Tasa_Anual, @Tasa_Mensual, @Dep_Acum_Inicio_Año,
-                 @ManejaFiscal, @ManejaUSGAAP, @FECHA_INIC_DEPREC_3,
-                 @CostoUSD, @CostoMXN,
-                 @Año_Calculo, @Lote_Importacion)", conn, transaction);
-
-        cmd.Parameters.AddWithValue("@ID_Compania", row["ID_COMPANIA"]);
-        cmd.Parameters.AddWithValue("@ID_NUM_ACTIVO", row["ID_NUM_ACTIVO"]);
-        cmd.Parameters.AddWithValue("@ID_ACTIVO", row["ID_ACTIVO"] ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("@ID_TIPO_ACTIVO", row["ID_TIPO_ACTIVO"] ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("@ID_SUBTIPO_ACTIVO", row["ID_SUBTIPO_ACTIVO"] ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("@Nombre_TipoActivo", row["Nombre_TipoActivo"] ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("@DESCRIPCION", row["DESCRIPCION"] ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("@ID_MONEDA", row["ID_MONEDA"] ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("@Nombre_Moneda", row["Nombre_Moneda"] ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("@ID_PAIS", row["ID_PAIS"]);
-        cmd.Parameters.AddWithValue("@Nombre_Pais", row["Nombre_Pais"] ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("@FECHA_COMPRA", row["FECHA_COMPRA"] ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("@FECHA_BAJA", row["FECHA_BAJA"] ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("@FECHA_INICIO_DEP", row["FECHA_INIC_DEPREC"] ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("@STATUS", row["STATUS"] ?? DBNull.Value);
-
-        // Convertir FLG_PROPIO de char a int
-        int flgPropio = row["FLG_PROPIO"].ToString() == "S" ? 1 : 0;
-        cmd.Parameters.AddWithValue("@FLG_PROPIO", flgPropio);
-
-        cmd.Parameters.AddWithValue("@Tasa_Anual", row["Tasa_Anual"] ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("@Tasa_Mensual",
-            row["Tasa_Anual"] != DBNull.Value ? Convert.ToDecimal(row["Tasa_Anual"]) / 100.0m / 12.0m : DBNull.Value);
-        cmd.Parameters.AddWithValue("@Dep_Acum_Inicio_Año", row["Dep_Acum_Inicio_Año"] ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("@ManejaFiscal", manejaFiscal);
-        cmd.Parameters.AddWithValue("@ManejaUSGAAP", manejaUSGAAP);
-        cmd.Parameters.AddWithValue("@FECHA_INIC_DEPREC_3", row["FECHA_INIC_DEPREC3"] ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("@CostoUSD", (object?)costoUSD ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("@CostoMXN", (object?)costoMXN ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("@Año_Calculo", añoCalculo);
-        cmd.Parameters.AddWithValue("@Lote_Importacion", loteImportacion);
-
-        await cmd.ExecuteNonQueryAsync();
-    }
 
     private async Task ActualizarLogCompletado(long idLog, DateTime fechaInicio, int registrosProcesados)
     {
