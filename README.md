@@ -97,46 +97,49 @@ Esto indica un error de captura en el sistema origen y el ETL los **omite autom�
 
 **Programa ETL**: `/Users/enrique/actifrmf/ETL_NET/ActifRMF.ETL/Program.cs`
 **Tabla destino**: `Staging_Activo`
+**📄 Documentación detallada**: Ver [ETL.md](ETL.md)
 
-**¿Por qué usar ETL .NET y no Stored Procedures?**
-- En **producción**, la base de datos de destino NO tiene visibilidad directa a la base de datos de origen
-- El ETL .NET funciona como **PUENTE**: lee de una BD, procesa en memoria, inserta en otra BD
-- NO usa OPENROWSET ni queries distribuidas (linked servers)
-- El connection string de origen se obtiene de `ConfiguracionCompania` (dinámico por compañía)
+#### Características Principales
 
-**¿Qué hace el ETL .NET?**
-1. **Limpia datos previos** - Elimina de `Calculo_RMF`, `Calculo_Fiscal_Simulado` y `Staging_Activo` (en ese orden por foreign keys)
-2. **Lee datos de origen** - Conecta a la BD origen usando el connection string de la compañía
-3. **Extrae activos** con filtros:
-   - Solo activos NO propios (`FLG_PROPIO = 0`)
-   - Activos activos o dados de baja en el año de cálculo
-   - Con tasa de depreciación fiscal > 0
-4. **Transforma datos**:
-   - `Tasa_Anual = PORCENTAJE / 100.0` (ej: 8 → 0.08)
-   - `Tasa_Mensual = PORCENTAJE / 1200.0` (ej: 8 → 0.006667)
-   - `Dep_Acum_Inicio_Año = ISNULL(ACUMULADO_HISTORICA, 0)` → **Pone 0 si no hay dato del año anterior**
-   - `CostoUSD` y `CostoMXN` según reglas de negocio (USGAAP vs Fiscal)
-5. **Inserta en Staging_Activo** - Guarda en lotes de 100 registros con transacciones
+✅ **Query Configurable** - Cada compañía tiene su propio query en `ConfiguracionCompania.Query_ETL`
+✅ **SqlBulkCopy** - Inserciones masivas ultra-rápidas (10-50x más rápido que INSERTs)
+✅ **LEFT JOIN Optimizado** - Usa índices en lugar de subqueries
+✅ **Sin INPC** - INPC se calcula en fase de cálculo, no en ETL
+✅ **Arquitectura de Puente** - Funciona sin visibilidad entre BDs
 
-**Activos de Prueba (Hardcoded)**:
-Durante desarrollo, el ETL importa **solo 9 activos específicos** que representan todos los casos de uso:
-- **4 activos EXTRANJEROS**: EXT-BAJA, EXT-ANTES-JUN, EXT-DESP-JUN, EXT-NORMAL
-- **5 activos NACIONALES**: NAC-ANTES-JUN, NAC-DESP-JUN, NAC-NORMAL (3 activos)
+#### ¿Qué hace el ETL .NET?
 
-**⚠️ CUANDO TODO ESTÉ 100% CORRECTO**: Quitar el filtro hardcodeado en línea 344-356 para importar TODOS los activos de la compañía.
+1. **Limpia datos previos** - Elimina de `Calculo_RMF` y `Staging_Activo`
+2. **Lee query de BD** - Obtiene query personalizado de `ConfiguracionCompania`
+3. **Extrae activos** - Ejecuta query con parámetros (@ID_Compania, @Año_Calculo, @Año_Anterior)
+4. **Transforma en memoria** - Calcula CostoUSD, CostoMXN, Tasa_Mensual
+5. **Valida datos** - Detecta "ERROR DE DEDO" (ambos flags activos)
+6. **Inserta con SqlBulkCopy** - Carga masiva en `Staging_Activo`
 
-**Columnas en Staging_Activo** (principales):
-- `ID_NUM_ACTIVO` - Folio del activo
-- `ManejaFiscal` - 'S' = Activo NACIONAL (propiedad mexicana)
-- `ManejaUSGAAP` - 'S' = Activo EXTRANJERO (propiedad americana en consignación)
-- `FLG_PROPIO` - 0=NO propio (incluir), 1=Propio (excluir)
-- `CostoUSD` - MOI en dólares (solo extranjeros)
-- `CostoMXN` - MOI en pesos (nacionales o extranjeros convertidos)
-- `Tasa_Anual` - Tasa anual de depreciación fiscal (0.08, 0.10, etc.)
-- `Tasa_Mensual` - Tasa mensual (Tasa_Anual / 12)
-- `Dep_Acum_Inicio_Año` - Depreciación histórica al 31-Dic año anterior (solo nacionales usan este valor)
-- `INPC_Adquisicion` - INPC del mes de adquisición (solo nacionales)
-- `INPC_Mitad_Ejercicio` - INPC de 30-Jun del año de cálculo (solo nacionales)
+#### Performance
+
+| Activos | Tiempo (aprox) |
+|---------|---------------|
+| 100 | ~0.5 seg |
+| 1,000 | ~5 seg |
+| 10,000 | ~50 seg |
+
+#### Ejecución
+
+**Línea de comandos:**
+```bash
+dotnet run 188 2024
+```
+
+**API Web:**
+```bash
+curl -X POST http://localhost:5071/api/etl/ejecutar \
+  -d '{"idCompania": 188, "añoCalculo": 2024}'
+```
+
+**Interfaz Web:** http://localhost:5071/extraccion.html
+
+Para más detalles sobre el query, configuración y troubleshooting, ver **[ETL.md](ETL.md)**
 
 ---
 
@@ -630,5 +633,11 @@ Para reportar problemas o solicitar mejoras, contactar al equipo de desarrollo.
 ---
 
 **Fecha de creación**: 2025-10-12
-**Última actualización**: 2025-11-04
-**Versión**: 1.0.0 - Sistema funcional con cálculos verificados
+**Última actualización**: 2025-11-05
+**Versión**: 2.0.0 - ETL optimizado con SqlBulkCopy + Queries Configurables
+
+## 📄 Documentación Adicional
+
+- **[ETL.md](ETL.md)** - Documentación completa del ETL (query, transformaciones, performance)
+- **[RMF.md](RMF.md)** - Marco legal LISR Art. 182 y reglas Safe Harbor
+- **[DICCIONARIO_DATOS.md](DICCIONARIO_DATOS.md)** - Diccionario de tablas Actif
