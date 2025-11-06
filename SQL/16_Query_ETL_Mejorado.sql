@@ -43,22 +43,7 @@ SELECT
     ISNULL(pd.PORC_SEGUNDO_ANO, 0) AS Tasa_Anual,
 
     -- Depreciación acumulada FISCAL del año ANTERIOR (Diciembre)
-    ISNULL((
-        SELECT TOP 1 c.ACUMULADO_HISTORICA
-        FROM calculo c
-        WHERE c.ID_NUM_ACTIVO = a.ID_NUM_ACTIVO
-          AND c.ID_COMPANIA = a.ID_COMPANIA
-          AND c.ID_ANO = @Año_Anterior
-          AND c.ID_MES = 12
-          AND c.ID_TIPO_DEP = 2
-        ORDER BY c.ACUMULADO_HISTORICA DESC
-    ), 0) AS Dep_Acum_Inicio_Año,
-
-    -- INPC de adquisición (solo para mexicanos)
-    inpc_adq.Indice AS INPC_Adquisicion,
-
-    -- INPC de mitad del ejercicio (junio del año de cálculo)
-    inpc_mitad.Indice AS INPC_Mitad_Ejercicio
+    ISNULL(c_hist.ACUMULADO_HISTORICA, 0) AS Dep_Acum_Inicio_Año
 
 FROM activo a
 
@@ -81,19 +66,13 @@ LEFT JOIN porcentaje_depreciacion pd
     AND CAST(@Año_Calculo AS VARCHAR(4)) + '-01-01' >= pd.FECHA_INICIO
     AND CAST(@Año_Calculo AS VARCHAR(4)) + '-01-01' <= ISNULL(pd.FECHA_FIN, '2100-12-31')
 
--- INPC de adquisición (solo para mexicanos, ID_PAIS = 1)
-LEFT JOIN INPC2 inpc_adq
-    ON YEAR(a.FECHA_COMPRA) = inpc_adq.Anio
-    AND MONTH(a.FECHA_COMPRA) = inpc_adq.Mes
-    AND inpc_adq.Id_Pais = 1
-    AND inpc_adq.Id_Grupo_Simulacion = 8
-
--- INPC de mitad del ejercicio (junio del año actual)
-LEFT JOIN INPC2 inpc_mitad
-    ON inpc_mitad.Anio = @Año_Calculo
-    AND inpc_mitad.Mes = 6
-    AND inpc_mitad.Id_Pais = 1
-    AND inpc_mitad.Id_Grupo_Simulacion = 8
+-- Join con depreciación histórica (Diciembre año anterior, Fiscal)
+LEFT JOIN calculo c_hist
+    ON c_hist.ID_NUM_ACTIVO = a.ID_NUM_ACTIVO
+    AND c_hist.ID_COMPANIA = a.ID_COMPANIA
+    AND c_hist.ID_ANO = @Año_Anterior
+    AND c_hist.ID_MES = 12
+    AND c_hist.ID_TIPO_DEP = 2
 
 WHERE a.ID_COMPANIA = @ID_Compania
   AND (a.STATUS = 'A' OR (a.STATUS = 'B' AND YEAR(a.FECHA_BAJA) = @Año_Calculo))
