@@ -37,7 +37,7 @@ CREATE TABLE dbo.ConfiguracionCompania_Deleted (
 
     -- Índice para búsquedas
     INDEX IX_ConfigCompania_Deleted_IDCompania (ID_Compania),
-    INDEX IX_ConfigCompania_Deleted_FechaEliminacion (FechaEliminacion)
+    INDEX IX_ConfigCompania_Deleted_FechaEliminacion (Fecha_Eliminacion)
 );
 GO
 
