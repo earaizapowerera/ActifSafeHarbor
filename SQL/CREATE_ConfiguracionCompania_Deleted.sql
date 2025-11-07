@@ -31,10 +31,9 @@ CREATE TABLE dbo.ConfiguracionCompania_Deleted (
     UsuarioCreacion NVARCHAR(100) NULL,
     Query_ETL NVARCHAR(MAX) NULL,
 
-    -- Columnas de auditoría de eliminación
-    FechaEliminacion DATETIME NOT NULL DEFAULT GETDATE(),
-    UsuarioEliminacion NVARCHAR(100) NULL,
-    MotivoEliminacion NVARCHAR(500) NULL,
+    -- Columnas de auditoría (según trigger)
+    Fecha_Eliminacion DATETIME NOT NULL DEFAULT GETDATE(),
+    Tipo_Operacion NVARCHAR(50) NULL,  -- 'UPDATE', 'DELETE', etc.
 
     -- Índice para búsquedas
     INDEX IX_ConfigCompania_Deleted_IDCompania (ID_Compania),
@@ -46,8 +45,11 @@ PRINT '✅ Tabla ConfiguracionCompania_Deleted creada exitosamente';
 PRINT '';
 PRINT 'Estructura:';
 PRINT '  - ID_Deleted: IDENTITY(1,1) PRIMARY KEY';
-PRINT '  - Columnas originales de ConfiguracionCompania';
-PRINT '  - FechaEliminacion: Fecha de eliminación';
-PRINT '  - UsuarioEliminacion: Usuario que eliminó';
-PRINT '  - MotivoEliminacion: Motivo opcional';
+PRINT '  - Columnas originales de ConfiguracionCompania (10 campos)';
+PRINT '  - Fecha_Eliminacion: Fecha de eliminación (sin tilde)';
+PRINT '  - Tipo_Operacion: UPDATE, DELETE, etc.';
+PRINT '';
+PRINT 'Compatible con triggers:';
+PRINT '  - trg_ConfiguracionCompania_Update_Backup';
+PRINT '  - trg_ConfiguracionCompania_Delete_Backup';
 GO
