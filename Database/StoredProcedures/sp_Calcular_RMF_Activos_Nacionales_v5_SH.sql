@@ -48,7 +48,7 @@ BEGIN
     WHERE Anio = @Año_Calculo
       AND Mes = 6  -- JUNIO - FIJO para Safe Harbor
       AND Id_Pais = 1
-      AND Id_Tipo_Dep = 2;
+      AND Id_Grupo_Simulacion = 8;
 
     IF @INPC_Junio IS NULL
     BEGIN
@@ -164,7 +164,7 @@ BEGIN
         ON YEAR(ac.FECHA_COMPRA) = inpc.Anio
         AND MONTH(ac.FECHA_COMPRA) = inpc.Mes
         AND inpc.Id_Pais = 1
-        AND inpc.Id_Tipo_Dep = 2;
+        AND inpc.Id_Grupo_Simulacion = 8;
 
     PRINT 'INPC de compra obtenidos de tabla local INPC2';
 
