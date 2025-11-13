@@ -55,9 +55,11 @@ class Program
 
 public class ETLActivos
 {
-    // Connection strings
-    private const string ConnStrOrigen = "Server=dbdev.powerera.com;Database=actif_learensayo10;User Id=earaiza;Password=VgfN-n4ju?H1Z4#JFRE;TrustServerCertificate=True;";
+    // Connection string DESTINO (Actif_RMF) - siempre la misma
     private const string ConnStrDestino = "Server=dbdev.powerera.com;Database=Actif_RMF;User Id=earaiza;Password=VgfN-n4ju?H1Z4#JFRE;TrustServerCertificate=True;";
+
+    // Connection string ORIGEN - se obtiene dinámicamente de ConfiguracionCompania por compañía
+    // (Eliminado hardcoded, ahora se lee desde BD)
 
     public async Task EjecutarETL(int idCompania, int añoCalculo, int? limiteRegistros = null, Guid? loteParam = null)
     {
@@ -67,26 +69,30 @@ public class ETLActivos
 
         try
         {
-            // 0. Verificar y eliminar constraint de unicidad (si existe)
+            // 0. Obtener configuración de la compañía (ConnectionString + Query)
+            Console.WriteLine("Obteniendo configuración de la compañía...");
+            var (connectionStringOrigen, queryETL, nombreCompania) = await ObtenerConfiguracionCompania(idCompania);
+
+            // 1. Verificar y eliminar constraint de unicidad (si existe)
             await EliminarConstraintUnicidad();
 
-            // 0.5 Limpiar datos previos de staging para esta compañía/año
+            // 2. Limpiar datos previos de staging para esta compañía/año
             await LimpiarStagingPrevio(idCompania, añoCalculo);
 
-            // 1. Obtener tipo de cambio del 30 de junio
+            // 3. Obtener tipo de cambio del 30 de junio
             decimal tipoCambio30Junio = await ObtenerTipoCambio30Junio(añoCalculo);
             Console.WriteLine($"Tipo de cambio 30-Jun-{añoCalculo}: {tipoCambio30Junio:N6}");
             Console.WriteLine();
 
-            // 2. Registrar inicio en log
+            // 4. Registrar inicio en log
             long idLog = await RegistrarInicioLog(idCompania, añoCalculo, loteImportacion);
             Console.WriteLine($"Log ID: {idLog}");
             Console.WriteLine($"Lote: {loteImportacion}");
             Console.WriteLine();
 
-            // 3. Extraer datos de origen
+            // 5. Extraer datos de origen usando configuración de la BD
             Console.WriteLine("Extrayendo datos de origen...");
-            DataTable dtActivos = await ExtraerActivosOrigen(idCompania, añoCalculo, limiteRegistros);
+            DataTable dtActivos = await ExtraerActivosOrigen(connectionStringOrigen, queryETL, idCompania, añoCalculo, limiteRegistros);
             Console.WriteLine($"Activos extraídos: {dtActivos.Rows.Count}");
             Console.WriteLine();
 
@@ -254,34 +260,56 @@ public class ETLActivos
         Console.WriteLine($"[TOTAL] {totalRegistros} registros a procesar");
     }
 
-    private async Task<string> ObtenerQueryETL(int idCompania)
+    private async Task<(string ConnectionString, string QueryETL, string NombreCompania)> ObtenerConfiguracionCompania(int idCompania)
     {
         using var conn = new SqlConnection(ConnStrDestino);
         await conn.OpenAsync();
 
         var cmd = new SqlCommand(@"
-            SELECT Query_ETL
+            SELECT
+                ConnectionString_Actif,
+                Query_ETL,
+                Nombre_Compania
             FROM ConfiguracionCompania
             WHERE ID_Compania = @ID_Compania
               AND Activo = 1", conn);
 
         cmd.Parameters.AddWithValue("@ID_Compania", idCompania);
 
-        var result = await cmd.ExecuteScalarAsync();
-        if (result == null || result == DBNull.Value || string.IsNullOrWhiteSpace(result.ToString()))
+        using var reader = await cmd.ExecuteReaderAsync();
+
+        if (!await reader.ReadAsync())
         {
-            throw new Exception($"No se encontró Query_ETL configurado para compañía {idCompania}");
+            throw new Exception($"No se encontró configuración para compañía {idCompania}");
         }
 
-        return result.ToString()!;
+        string connectionString = reader["ConnectionString_Actif"]?.ToString() ?? "";
+        string queryETL = reader["Query_ETL"]?.ToString() ?? "";
+        string nombreCompania = reader["Nombre_Compania"]?.ToString() ?? $"Compañía {idCompania}";
+
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            throw new Exception($"ConnectionString_Actif no configurado para compañía {idCompania}. Debe configurarse en la tabla ConfiguracionCompania.");
+        }
+
+        if (string.IsNullOrWhiteSpace(queryETL))
+        {
+            throw new Exception($"Query_ETL no configurado para compañía {idCompania}. Debe configurarse en la tabla ConfiguracionCompania.");
+        }
+
+        Console.WriteLine($"✅ Configuración obtenida para: {nombreCompania}");
+        Console.WriteLine($"   Connection String: {connectionString.Substring(0, Math.Min(50, connectionString.Length))}...");
+        Console.WriteLine();
+
+        return (connectionString, queryETL, nombreCompania);
     }
 
-    private async Task<DataTable> ExtraerActivosOrigen(int idCompania, int añoCalculo, int? limiteRegistros = null)
+    private async Task<DataTable> ExtraerActivosOrigen(string connectionStringOrigen, string queryETL, int idCompania, int añoCalculo, int? limiteRegistros = null)
     {
         int añoAnterior = añoCalculo - 1;
 
-        // Obtener query configurado para esta compañía
-        string queryBase = await ObtenerQueryETL(idCompania);
+        // Usar el query configurado
+        string queryBase = queryETL;
 
         // Si hay límite, agregar TOP al query
         if (limiteRegistros.HasValue)
@@ -294,7 +322,8 @@ public class ETLActivos
             }
         }
 
-        using var conn = new SqlConnection(ConnStrOrigen);
+        // Usar el connection string obtenido de la BD
+        using var conn = new SqlConnection(connectionStringOrigen);
         await conn.OpenAsync();
 
         // Usar el query configurado en la BD
