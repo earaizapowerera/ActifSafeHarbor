@@ -1,34 +1,29 @@
 -- =============================================
--- SP Calcular RMF Activos NACIONALES v5.0 - SAFE HARBOR
--- Agrega cálculos Safe Harbor usando INPC de JUNIO
--- FISCAL: Mantiene cálculos actuales (actualizados por programa externo)
--- SAFE HARBOR: Nuevos cálculos con INPC fijo de junio
+-- SP Calcular RMF Activos NACIONALES (FIXED)
+-- Solo parámetros: @ID_Compania, @Año_Calculo
+-- Elimina cálculos previos antes de calcular
 -- =============================================
 
 USE Actif_RMF;
 GO
 
--- NO EJECUTAR - SOLO PARA REVISIÓN
--- IF OBJECT_ID('dbo.sp_Calcular_RMF_Activos_Nacionales', 'P') IS NOT NULL
---     DROP PROCEDURE dbo.sp_Calcular_RMF_Activos_Nacionales;
--- GO
+IF OBJECT_ID('dbo.sp_Calcular_RMF_Activos_Nacionales', 'P') IS NOT NULL
+    DROP PROCEDURE dbo.sp_Calcular_RMF_Activos_Nacionales;
+GO
 
-/*
 CREATE PROCEDURE dbo.sp_Calcular_RMF_Activos_Nacionales
     @ID_Compania INT,
     @Año_Calculo INT
 AS
 BEGIN
-*/
     SET NOCOUNT ON;
 
     DECLARE @Año_Anterior INT = @Año_Calculo - 1;
     DECLARE @Fecha_30_Junio DATE = CAST(CAST(@Año_Calculo AS VARCHAR(4)) + '-06-30' AS DATE);
     DECLARE @RegistrosProcesados INT = 0;
-    DECLARE @INPC_Junio DECIMAL(18,6) = NULL;
 
     PRINT '========================================';
-    PRINT 'Cálculo RMF Activos Nacionales v5.0 - SAFE HARBOR';
+    PRINT 'Cálculo RMF Activos Nacionales';
     PRINT 'Compañía: ' + CAST(@ID_Compania AS VARCHAR(10));
     PRINT 'Año: ' + CAST(@Año_Calculo AS VARCHAR(10));
     PRINT '========================================';
@@ -41,27 +36,7 @@ BEGIN
 
     PRINT 'Cálculos previos eliminados: ' + CAST(@@ROWCOUNT AS VARCHAR(10));
 
-    -- 2. Obtener INPC de JUNIO del año de cálculo (para Safe Harbor)
-    -- Buscar en tabla local INPC2
-    SELECT @INPC_Junio = Indice
-    FROM INPC2
-    WHERE Anio = @Año_Calculo
-      AND Mes = 6  -- JUNIO - FIJO para Safe Harbor
-      AND Id_Pais = 1
-      AND Id_Grupo_Simulacion = 8;
-
-    IF @INPC_Junio IS NULL
-    BEGIN
-        PRINT 'ADVERTENCIA: No se encontró INPC de junio ' + CAST(@Año_Calculo AS VARCHAR(10)) + ' en tabla local INPC2';
-        PRINT 'Se usará factor 1.0 para Safe Harbor';
-        SET @INPC_Junio = 0;  -- Marcar como no encontrado
-    END
-    ELSE
-    BEGIN
-        PRINT 'INPC de junio ' + CAST(@Año_Calculo AS VARCHAR(10)) + ': ' + CAST(@INPC_Junio AS VARCHAR(20));
-    END
-
-    -- 3. Crear tabla temporal CON CAMPOS SAFE HARBOR
+    -- 2. Crear tabla temporal
     CREATE TABLE #ActivosCalculo (
         ID_Staging BIGINT,
         ID_NUM_ACTIVO INT,
@@ -70,59 +45,34 @@ BEGIN
         Tasa_Mensual DECIMAL(18,6),
         Dep_Anual DECIMAL(18,4),
         FECHA_COMPRA DATE,
-        FECHA_INICIO_DEP DATE,
+        FECHA_INICIO_DEP DATE,  -- FECHA_INIC_DEPREC para calcular meses de depreciación
         FECHA_BAJA DATE,
         ID_PAIS INT,
         Dep_Acum_Inicio DECIMAL(18,4),
-
-        -- INPC
         INPCCompra DECIMAL(18,6),
-        INPCUtilizado DECIMAL(18,6),  -- Para fiscal (actualizado después)
-
-        -- Meses
+        INPCUtilizado DECIMAL(18,6),
         Meses_Uso_Inicio_Ejercicio INT,
         Meses_Uso_Hasta_Mitad_Periodo INT,
         Meses_Uso_Ejercicio INT,
-
-        -- Cálculos base
         Saldo_Inicio_Año DECIMAL(18,4),
         Dep_Ejercicio DECIMAL(18,4),
         Monto_Pendiente DECIMAL(18,4),
-
-        -- ========================================
-        -- CAMPOS FISCALES (actualizados después por programa externo)
-        -- ========================================
+        -- Campos de actualización por INPC
         Factor_Actualizacion_Saldo DECIMAL(18,10),
         Saldo_Actualizado DECIMAL(18,4),
         Factor_Actualizacion_Dep DECIMAL(18,10),
         Dep_Actualizada DECIMAL(18,4),
         Valor_Promedio DECIMAL(18,4),
         Proporcion DECIMAL(18,4),
-
-        -- ========================================
-        -- CAMPOS SAFE HARBOR (calculados aquí con INPC de junio)
-        -- ========================================
-        INPC_SH_Junio DECIMAL(18,6),
-        Factor_SH DECIMAL(18,10),
-        Saldo_SH_Actualizado DECIMAL(18,4),
-        Dep_SH_Actualizada DECIMAL(18,4),
-        Valor_SH_Promedio DECIMAL(18,4),
-        Proporcion_SH DECIMAL(18,4),
-        Saldo_SH_Fiscal_Hist DECIMAL(18,4),
-        Saldo_SH_Fiscal_Act DECIMAL(18,4),
-        Valor_SH_Reportable DECIMAL(18,4),
-
-        -- Resultado fiscal (placeholder, actualizado después)
         Prueba_10Pct DECIMAL(18,4),
         Valor_MXN DECIMAL(18,4),
         Aplica_Regla_10Pct BIT,
-
-        -- Control
         Ruta_Calculo NVARCHAR(20),
         Descripcion_Ruta NVARCHAR(200)
     );
 
-    -- 4. Insertar activos NACIONALES
+    -- 3. Insertar activos NACIONALES (Fiscal)
+    -- Criterio: ManejaFiscal='S' AND CostoMXN > 0 AND Tasa_Anual > 0
     INSERT INTO #ActivosCalculo (
         ID_Staging, ID_NUM_ACTIVO, MOI, Tasa_Anual, Tasa_Mensual,
         FECHA_COMPRA, FECHA_INICIO_DEP, FECHA_BAJA, ID_PAIS, Dep_Acum_Inicio
@@ -134,17 +84,17 @@ BEGIN
         s.Tasa_Anual,
         s.Tasa_Mensual,
         s.FECHA_COMPRA,
-        s.FECHA_INICIO_DEP,
+        s.FECHA_INICIO_DEP,  -- Para calcular meses de depreciación
         s.FECHA_BAJA,
         s.ID_PAIS,
-        ISNULL(s.Dep_Acum_Inicio_Año, 0) AS Dep_Acum_Inicio
+        ISNULL(s.Dep_Acum_Inicio_Año, 0) AS Dep_Acum_Inicio  -- Usar histórico, NUNCA calcular
     FROM Staging_Activo s
     WHERE s.ID_Compania = @ID_Compania
       AND s.Año_Calculo = @Año_Calculo
-      AND s.ManejaFiscal = 'S'
+      AND s.ManejaFiscal = 'S'  -- NACIONALES: ManejaFiscal = 'S'
       AND s.CostoMXN IS NOT NULL
       AND s.CostoMXN > 0
-      AND s.Tasa_Anual > 0;
+      AND s.Tasa_Anual > 0;  -- EXCLUIR terrenos y activos sin depreciación (NO aplican Safe Harbor)
 
     SET @RegistrosProcesados = @@ROWCOUNT;
     PRINT 'Activos nacionales encontrados: ' + CAST(@RegistrosProcesados AS VARCHAR(10));
@@ -156,23 +106,12 @@ BEGIN
         RETURN 0;
     END
 
-    -- 5. Obtener INPC de Compra de tabla local INPC2
-    UPDATE ac
-    SET ac.INPCCompra = inpc.Indice
-    FROM #ActivosCalculo ac
-    LEFT JOIN INPC2 inpc
-        ON YEAR(ac.FECHA_COMPRA) = inpc.Anio
-        AND MONTH(ac.FECHA_COMPRA) = inpc.Mes
-        AND inpc.Id_Pais = 1
-        AND inpc.Id_Grupo_Simulacion = 8;
-
-    PRINT 'INPC de compra obtenidos de tabla local INPC2';
-
-    -- 6. Calcular Depreciación Anual
+    -- 4. Calcular Depreciación Anual
     UPDATE #ActivosCalculo
     SET Dep_Anual = MOI * (Tasa_Anual / 100);
 
-    -- 7. Calcular meses de uso al inicio del ejercicio
+    -- 5. Calcular meses de uso al inicio del ejercicio
+    -- USAR FECHA_INICIO_DEP para calcular meses de depreciación acumulada
     UPDATE #ActivosCalculo
     SET Meses_Uso_Inicio_Ejercicio =
         CASE
@@ -181,18 +120,21 @@ BEGIN
             ELSE DATEDIFF(MONTH, FECHA_INICIO_DEP, CAST(CAST(@Año_Anterior AS VARCHAR(4)) + '-12-31' AS DATE)) + 1
         END;
 
-    -- 8. Calcular meses hasta la mitad del periodo
+    -- 6. Calcular meses hasta la mitad del periodo (para depreciación en el ejercicio)
     UPDATE #ActivosCalculo
     SET Meses_Uso_Hasta_Mitad_Periodo =
         CASE
+            -- Caso: Activo dado de baja en el año
             WHEN FECHA_BAJA IS NOT NULL AND YEAR(FECHA_BAJA) = @Año_Calculo
             THEN MONTH(FECHA_BAJA) / 2
+            -- Caso: Activo existente desde antes del año (usa enero a junio = 6 meses)
             WHEN FECHA_COMPRA < CAST(CAST(@Año_Calculo AS VARCHAR(4)) + '-01-01' AS DATE)
             THEN 6
+            -- Caso: Activo adquirido en el año
             ELSE (13 - MONTH(FECHA_COMPRA)) / 2
         END;
 
-    -- 9. Calcular meses de uso en el ejercicio
+    -- 7. Calcular meses de uso en el ejercicio
     UPDATE #ActivosCalculo
     SET Meses_Uso_Ejercicio =
         CASE
@@ -203,28 +145,32 @@ BEGIN
             ELSE 12
         END;
 
-    PRINT 'Meses de uso calculados';
+    PRINT 'Meses de uso en ejercicio calculados';
 
-    -- 10. Calcular Saldo por Deducir ISR al Inicio del Año
+    -- 8. Calcular Saldo por Deducir ISR al Inicio del Año
     UPDATE #ActivosCalculo
     SET Saldo_Inicio_Año = MOI - Dep_Acum_Inicio;
 
-    -- 11. EXCLUIR activos totalmente depreciados
+    -- 8b. EXCLUIR activos totalmente depreciados (sin saldo por deducir)
     DELETE FROM #ActivosCalculo
     WHERE Saldo_Inicio_Año <= 0;
 
     PRINT 'Activos totalmente depreciados excluidos: ' + CAST(@@ROWCOUNT AS VARCHAR(10));
 
-    -- 12. Calcular Depreciación Fiscal del Ejercicio
+    -- 9. Calcular Depreciación Fiscal del Ejercicio
+    -- IMPORTANTE: La depreciación no puede exceder el saldo disponible
+    -- USAR Tasa_Anual/12/100 para mayor precisión (no Tasa_Mensual con 6 decimales)
+    -- CORRECCIÓN: Usar Meses_Uso_Ejercicio (no Meses_Hasta_Mitad_Periodo)
+    -- El 50% se aplica después en el cálculo del Valor_Promedio
     UPDATE #ActivosCalculo
     SET Dep_Ejercicio =
         CASE
             WHEN (MOI * (Tasa_Anual / 12 / 100) * Meses_Uso_Ejercicio) > Saldo_Inicio_Año
-            THEN Saldo_Inicio_Año
+            THEN Saldo_Inicio_Año  -- Limitar a saldo disponible
             ELSE MOI * (Tasa_Anual / 12 / 100) * Meses_Uso_Ejercicio
         END;
 
-    -- 13. Calcular Monto Pendiente
+    -- 10. Calcular Monto Pendiente por Deducir
     UPDATE #ActivosCalculo
     SET Monto_Pendiente =
         CASE
@@ -232,9 +178,10 @@ BEGIN
             ELSE (Saldo_Inicio_Año - Dep_Ejercicio)
         END;
 
-    -- ========================================
-    -- CÁLCULOS FISCALES (placeholder - actualizados después)
-    -- ========================================
+    -- 11-16. Cálculos con INPC: Se harán DESPUÉS por sp_Actualizar_INPC_Nacionales
+    -- Los INPC se obtendrán según lógica SAT y se guardarán en Calculo_RMF
+    -- Por ahora, usar factor 1.0 (sin actualización) como placeholder
+
     UPDATE #ActivosCalculo
     SET Factor_Actualizacion_Saldo = 1.0,
         Saldo_Actualizado = Saldo_Inicio_Año,
@@ -243,76 +190,12 @@ BEGIN
         Valor_Promedio = Saldo_Inicio_Año - (Dep_Ejercicio * 0.5),
         Proporcion = (Saldo_Inicio_Año - (Dep_Ejercicio * 0.5)) * (Meses_Uso_Ejercicio / 12.0);
 
-    PRINT 'Valores fiscales calculados (sin actualización INPC - se aplicará después)';
+    PRINT 'Proporción calculada (sin actualización INPC - se aplicará después)';
 
-    -- ========================================
-    -- CÁLCULOS SAFE HARBOR con INPC de JUNIO
-    -- ========================================
-    PRINT '';
-    PRINT '========================================';
-    PRINT 'CALCULANDO SAFE HARBOR (INPC de junio)';
-    PRINT '========================================';
-
-    -- 14. Asignar INPC de Junio a todos los activos
-    UPDATE #ActivosCalculo
-    SET INPC_SH_Junio = @INPC_Junio;
-
-    -- 15. Calcular Factor Safe Harbor (INPC Junio / INPC Compra)
-    UPDATE #ActivosCalculo
-    SET Factor_SH =
-        CASE
-            WHEN INPCCompra IS NOT NULL AND INPCCompra > 0 AND @INPC_Junio > 0
-            THEN @INPC_Junio / INPCCompra
-            ELSE 1.0
-        END;
-
-    PRINT 'Factor Safe Harbor calculado (INPC Junio / INPC Compra)';
-
-    -- 16. Calcular Saldo Safe Harbor Actualizado
-    UPDATE #ActivosCalculo
-    SET Saldo_SH_Actualizado = Saldo_Inicio_Año * Factor_SH;
-
-    -- 17. Calcular Depreciación Safe Harbor Actualizada
-    UPDATE #ActivosCalculo
-    SET Dep_SH_Actualizada = Dep_Ejercicio * Factor_SH;
-
-    -- 18. Calcular Valor Promedio Safe Harbor
-    -- Fórmula: Saldo Actualizado - 50% de Depreciación Actualizada
-    UPDATE #ActivosCalculo
-    SET Valor_SH_Promedio = Saldo_SH_Actualizado - (Dep_SH_Actualizada * 0.5);
-
-    -- 19. Calcular Proporción Safe Harbor
-    -- Fórmula: (Valor Promedio / 12) × Meses de Uso
-    UPDATE #ActivosCalculo
-    SET Proporcion_SH = (Valor_SH_Promedio / 12.0) * Meses_Uso_Ejercicio;
-
-    -- 20. Calcular Saldo Fiscal por Deducir Histórico (sin actualizar)
-    -- Fórmula: MOI - Dep Acum Inicio - Dep Ejercicio
-    UPDATE #ActivosCalculo
-    SET Saldo_SH_Fiscal_Hist = MOI - Dep_Acum_Inicio - Dep_Ejercicio;
-
-    -- 21. Calcular Saldo Fiscal por Deducir Actualizado
-    -- Fórmula: Saldo Histórico × Factor Safe Harbor
-    UPDATE #ActivosCalculo
-    SET Saldo_SH_Fiscal_Act = Saldo_SH_Fiscal_Hist * Factor_SH;
-
-    -- 22. Calcular Valor Reportable Safe Harbor (aplicar regla 10% MOI)
-    -- Fórmula: MAX(Proporción Safe Harbor, 10% MOI)
+    -- 17. APLICAR REGLA DEL MAYOR (Proporción vs 10% MOI)
     UPDATE #ActivosCalculo
     SET Prueba_10Pct = MOI * 0.10,
-        Valor_SH_Reportable =
-            CASE
-                WHEN Proporcion_SH > (MOI * 0.10) THEN Proporcion_SH
-                ELSE MOI * 0.10
-            END;
-
-    PRINT 'Valor Reportable Safe Harbor calculado con regla 10% MOI';
-
-    -- ========================================
-    -- VALOR FISCAL (placeholder)
-    -- ========================================
-    UPDATE #ActivosCalculo
-    SET Valor_MXN =  -- Valor fiscal placeholder
+        Valor_MXN =  -- Para nacionales, Valor_MXN es directamente el mayor
             CASE
                 WHEN Proporcion > (MOI * 0.10) THEN Proporcion
                 ELSE MOI * 0.10
@@ -323,7 +206,7 @@ BEGIN
                 ELSE 0
             END;
 
-    -- 23. Determinar ruta de cálculo
+    -- 13. Determinar ruta de cálculo
     UPDATE #ActivosCalculo
     SET Ruta_Calculo =
             CASE
@@ -342,31 +225,16 @@ BEGIN
                 ELSE 'Activo en uso normal en ' + CAST(@Año_Calculo AS VARCHAR(10))
             END;
 
-    -- 24. Insertar resultados en Calculo_RMF (CON CAMPOS SAFE HARBOR)
+    -- 14. Insertar resultados en Calculo_RMF
     INSERT INTO Calculo_RMF (
         ID_Staging, ID_Compania, ID_NUM_ACTIVO, Año_Calculo, Tipo_Activo,
         ID_PAIS, Ruta_Calculo, Descripcion_Ruta,
         MOI, Tasa_Anual, Tasa_Mensual, Dep_Anual, Dep_Acum_Inicio,
-
-        -- INPC
         INPCCompra, INPCUtilizado,
-
-        -- CAMPOS FISCALES (actualizados después por programa externo)
         Factor_Actualizacion_Saldo, Factor_Actualizacion_Dep,
-        Saldo_Actualizado, Dep_Actualizada, Valor_Promedio, Proporcion,
-
-        -- CAMPOS SAFE HARBOR (calculados aquí)
-        INPC_SH_Junio, Factor_SH,
-        Saldo_SH_Actualizado, Dep_SH_Actualizada,
-        Valor_SH_Promedio, Proporcion_SH,
-        Saldo_SH_Fiscal_Hist, Saldo_SH_Fiscal_Act,
-        Valor_SH_Reportable,
-
-        -- Meses
+        Saldo_Actualizado, Dep_Actualizada, Valor_Promedio,
         Meses_Uso_Inicio_Ejercicio, Meses_Uso_Hasta_Mitad_Periodo, Meses_Uso_En_Ejercicio,
-
-        -- Otros
-        Saldo_Inicio_Año, Dep_Fiscal_Ejercicio, Monto_Pendiente,
+        Saldo_Inicio_Año, Dep_Fiscal_Ejercicio, Monto_Pendiente, Proporcion,
         Prueba_10_Pct_MOI, Aplica_10_Pct,
         Valor_Reportable_USD, Tipo_Cambio_30_Junio, Valor_Reportable_MXN,
         Fecha_Adquisicion, Fecha_Baja, Fecha_Calculo, Version_SP
@@ -375,41 +243,24 @@ BEGIN
         ID_Staging, @ID_Compania, ID_NUM_ACTIVO, @Año_Calculo, 'Nacional',
         ID_PAIS, Ruta_Calculo, Descripcion_Ruta,
         MOI, Tasa_Anual, Tasa_Mensual, Dep_Anual, Dep_Acum_Inicio,
-
-        -- INPC
-        INPCCompra, INPCUtilizado,  -- NULL por ahora
-
-        -- CAMPOS FISCALES
+        INPCCompra, INPCUtilizado,  -- NULL por ahora, se actualizarán después por sp_Actualizar_INPC_Nacionales
         Factor_Actualizacion_Saldo, Factor_Actualizacion_Dep,
-        Saldo_Actualizado, Dep_Actualizada, Valor_Promedio, Proporcion,
-
-        -- CAMPOS SAFE HARBOR
-        INPC_SH_Junio, Factor_SH,
-        Saldo_SH_Actualizado, Dep_SH_Actualizada,
-        Valor_SH_Promedio, Proporcion_SH,
-        Saldo_SH_Fiscal_Hist, Saldo_SH_Fiscal_Act,
-        Valor_SH_Reportable,
-
-        -- Meses
+        Saldo_Actualizado, Dep_Actualizada, Valor_Promedio,
         Meses_Uso_Inicio_Ejercicio, Meses_Uso_Hasta_Mitad_Periodo, Meses_Uso_Ejercicio,
-
-        -- Otros
-        Saldo_Inicio_Año, Dep_Ejercicio, Monto_Pendiente,
+        Saldo_Inicio_Año, Dep_Ejercicio, Monto_Pendiente, Proporcion,
         Prueba_10Pct, Aplica_Regla_10Pct,
         NULL, NULL, Valor_MXN,  -- No aplican USD ni TC para nacionales
-        FECHA_COMPRA, FECHA_BAJA, GETDATE(), 'v5.0-SAFE-HARBOR'
+        FECHA_COMPRA, FECHA_BAJA, GETDATE(), 'v4.5-LIMPIO'
     FROM #ActivosCalculo;
 
     SET @RegistrosProcesados = @@ROWCOUNT;
 
-    -- 25. Mostrar resumen
-    DECLARE @TotalValorFiscal DECIMAL(18,2);
-    DECLARE @TotalValorSafeHarbor DECIMAL(18,2);
+    -- 15. Mostrar resumen
+    DECLARE @TotalValorReportable DECIMAL(18,2);
     DECLARE @ActivosRegla10Pct INT;
 
     SELECT
-        @TotalValorFiscal = SUM(Valor_MXN),
-        @TotalValorSafeHarbor = SUM(Valor_SH_Reportable),
+        @TotalValorReportable = SUM(Valor_MXN),
         @ActivosRegla10Pct = SUM(CAST(Aplica_Regla_10Pct AS INT))
     FROM #ActivosCalculo;
 
@@ -418,10 +269,8 @@ BEGIN
     PRINT 'RESUMEN DE CÁLCULO';
     PRINT '========================================';
     PRINT 'Registros procesados: ' + CAST(@RegistrosProcesados AS VARCHAR(10));
-    PRINT 'Total valor FISCAL (MXN): $' + FORMAT(@TotalValorFiscal, 'N2');
-    PRINT 'Total valor SAFE HARBOR (MXN): $' + FORMAT(@TotalValorSafeHarbor, 'N2');
+    PRINT 'Total valor reportable (MXN): $' + FORMAT(@TotalValorReportable, 'N2');
     PRINT 'Activos con regla 10% MOI: ' + CAST(@ActivosRegla10Pct AS VARCHAR(10));
-    PRINT 'INPC Junio utilizado: ' + CAST(@INPC_Junio AS VARCHAR(20));
     PRINT '';
 
     DROP TABLE #ActivosCalculo;
@@ -430,10 +279,8 @@ BEGIN
     PRINT '========================================';
 
     RETURN @RegistrosProcesados;
-/*
 END
 GO
 
-PRINT 'SP sp_Calcular_RMF_Activos_Nacionales v5.0 SAFE HARBOR creado';
+PRINT 'SP sp_Calcular_RMF_Activos_Nacionales creado (v3.0-FIXED)';
 GO
-*/
