@@ -21,7 +21,9 @@ public class DatabaseSetupService
             Console.WriteLine("===========================================\n");
 
             // Script 1: Create database - must run against 'master'
-            var createDbScript = "/Users/enrique/ActifRMF/SQL/01_CREATE_DATABASE.sql";
+            // Usar ruta relativa al directorio de la aplicación
+            var sqlPath = Path.Combine(Directory.GetCurrentDirectory(), "SQL");
+            var createDbScript = Path.Combine(sqlPath, "01_CREATE_DATABASE.sql");
             Console.WriteLine($"Ejecutando: {Path.GetFileName(createDbScript)}");
 
             if (!File.Exists(createDbScript))
@@ -69,14 +71,14 @@ public class DatabaseSetupService
             // Scripts 0-10: Run against Actif_RMF database
             var scripts = new[]
             {
-                "/Users/enrique/ActifRMF/SQL/00_CLEANUP_Calculo_RMF.sql",
-                "/Users/enrique/ActifRMF/SQL/02_CREATE_TABLES.sql",
-                "/Users/enrique/ActifRMF/SQL/03_INSERT_CATALOGOS.sql",
-                "/Users/enrique/ActifRMF/SQL/09_INSERT_COMPANIAS_REALES.sql", // Compañías con IDs reales (123, 188)
-                "/Users/enrique/ActifRMF/SQL/04_SP_ETL_Importar_Activos.sql",
-                "/Users/enrique/ActifRMF/SQL/05_SP_Calcular_RMF_Activos_Extranjeros.sql",
-                // "/Users/enrique/ActifRMF/SQL/06_AJUSTES_TABLAS.sql", // SKIP: Renombra Calculo_RMF
-                "/Users/enrique/ActifRMF/SQL/07_FIX_LOG_DUPLICADOS.sql"
+                Path.Combine(sqlPath, "00_CLEANUP_Calculo_RMF.sql"),
+                Path.Combine(sqlPath, "02_CREATE_TABLES.sql"),
+                Path.Combine(sqlPath, "03_INSERT_CATALOGOS.sql"),
+                Path.Combine(sqlPath, "09_INSERT_COMPANIAS_REALES.sql"), // Compañías con IDs reales (123, 188)
+                Path.Combine(sqlPath, "04_SP_ETL_Importar_Activos.sql"),
+                Path.Combine(sqlPath, "05_SP_Calcular_RMF_Activos_Extranjeros.sql"),
+                // Path.Combine(sqlPath, "06_AJUSTES_TABLAS.sql"), // SKIP: Renombra Calculo_RMF
+                Path.Combine(sqlPath, "07_FIX_LOG_DUPLICADOS.sql")
                 // Scripts 08, 10 no son necesarios ya que 02 crea la tabla correctamente
             };
 

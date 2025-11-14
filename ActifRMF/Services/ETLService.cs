@@ -51,8 +51,17 @@ public class ETLService
             // El ETL .NET borra en el orden correcto: Calculo_RMF -> Calculo_Fiscal_Simulado -> Staging_Activo
 
             // Invocar el ETL .NET standalone en lugar de queries cross-database
-            var etlPath = "/Users/enrique/ActifRMF/ETL_NET/ActifRMF.ETL";
-            var etlExe = Path.Combine(etlPath, "bin/Release/net8.0/ActifRMF.ETL.dll");
+            // Usar ruta relativa: buscar ETL en directorio padre o configuración
+            var baseDir = Directory.GetCurrentDirectory();
+            var etlPath = Path.Combine(baseDir, "..", "ETL_NET", "ActifRMF.ETL");
+            var etlExe = Path.Combine(etlPath, "bin", "Release", "net8.0", "ActifRMF.ETL.dll");
+
+            // Si no existe, intentar buscar desde el directorio de la aplicación
+            if (!File.Exists(etlExe))
+            {
+                etlPath = Path.Combine(baseDir, "ETL");
+                etlExe = Path.Combine(etlPath, "ActifRMF.ETL.dll");
+            }
 
             var arguments = $"\"{etlExe}\" {idCompania} {añoCalculo}";
             if (maxRegistros.HasValue)

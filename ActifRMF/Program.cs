@@ -506,7 +506,8 @@ app.MapGet("/analizar-excel", () =>
 {
     try
     {
-        var excelPath = "/Users/enrique/ActifRMF/Propuesta reporte Calculo AF.xlsx";
+        // Usar ruta relativa al directorio de la aplicación
+        var excelPath = Path.Combine(Directory.GetCurrentDirectory(), "Propuesta reporte Calculo AF.xlsx");
         var analyzer = new ExcelAnalyzer();
 
         Console.WriteLine("\n\n");
