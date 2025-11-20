@@ -137,6 +137,28 @@ function inicializarGridExtranjeros() {
             }
         },
         {
+            headerName: 'Fecha Inicio Depreciación',
+            field: 'fechaInicioDepreciacion',
+            filter: 'agDateColumnFilter',
+            width: 180,
+            valueFormatter: params => {
+                if (!params.value) return '';
+                const date = new Date(params.value);
+                return date.toLocaleDateString('es-MX');
+            }
+        },
+        {
+            headerName: 'Fecha Fin Depreciación',
+            field: 'fechaFinDepreciacion',
+            filter: 'agDateColumnFilter',
+            width: 180,
+            valueFormatter: params => {
+                if (!params.value) return '';
+                const date = new Date(params.value);
+                return date.toLocaleDateString('es-MX');
+            }
+        },
+        {
             headerName: 'Fecha Baja',
             field: 'fechaBaja',
             filter: 'agDateColumnFilter',
@@ -154,7 +176,7 @@ function inicializarGridExtranjeros() {
             width: 140,
             type: 'numericColumn',
             aggFunc: 'sum',  // Sumar en subtotales
-            valueFormatter: params => params.value ? params.value.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : ''
+            valueFormatter: params => params.value != null ? params.value.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : ''
         },
         {
             headerName: 'Anual Rate',
@@ -179,7 +201,7 @@ function inicializarGridExtranjeros() {
             width: 140,
             type: 'numericColumn',
             aggFunc: 'sum',
-            valueFormatter: params => params.value ? params.value.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : ''
+            valueFormatter: params => params.value != null ? params.value.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : ''
         },
         {
             headerName: 'Meses Uso Inicio Ejerc.',
@@ -209,7 +231,7 @@ function inicializarGridExtranjeros() {
             width: 180,
             type: 'numericColumn',
             aggFunc: 'sum',
-            valueFormatter: params => params.value ? params.value.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : ''
+            valueFormatter: params => params.value != null ? params.value.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : ''
         },
         {
             headerName: 'Saldo Por Deducir ISR Inicio',
@@ -218,7 +240,7 @@ function inicializarGridExtranjeros() {
             width: 200,
             type: 'numericColumn',
             aggFunc: 'sum',
-            valueFormatter: params => params.value ? params.value.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : ''
+            valueFormatter: params => params.value != null ? params.value.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : ''
         },
         {
             headerName: 'Dep Fiscal Ejercicio',
@@ -227,7 +249,7 @@ function inicializarGridExtranjeros() {
             width: 150,
             type: 'numericColumn',
             aggFunc: 'sum',
-            valueFormatter: params => params.value ? params.value.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : ''
+            valueFormatter: params => params.value != null ? params.value.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : ''
         },
         {
             headerName: 'Monto Pendiente',
@@ -236,7 +258,7 @@ function inicializarGridExtranjeros() {
             width: 150,
             type: 'numericColumn',
             aggFunc: 'sum',
-            valueFormatter: params => params.value ? params.value.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : ''
+            valueFormatter: params => params.value != null ? params.value.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : ''
         },
         {
             headerName: 'Proporción',
@@ -245,16 +267,17 @@ function inicializarGridExtranjeros() {
             width: 140,
             type: 'numericColumn',
             aggFunc: 'sum',
-            valueFormatter: params => params.value ? params.value.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : ''
+            valueFormatter: params => params.value != null ? params.value.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : ''
         },
         {
-            headerName: 'Prueba 10% MOI',
+            headerName: 'SH_Prueba 10% MOI',
             field: 'pruebaDel10PctMOI',
             filter: 'agNumberColumnFilter',
-            width: 140,
+            width: 160,
             type: 'numericColumn',
             aggFunc: 'sum',
-            valueFormatter: params => params.value ? params.value.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : ''
+            valueFormatter: params => params.value != null ? params.value.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '',
+            cellStyle: {'background-color': '#d1e7dd'}
         },
         {
             headerName: 'Tipo Cambio 30 Junio',
@@ -265,14 +288,14 @@ function inicializarGridExtranjeros() {
             valueFormatter: params => params.value ? params.value.toFixed(6) : ''
         },
         {
-            headerName: 'Valor Reportable MXN',
+            headerName: 'SH_Valor Reportable MXN',
             field: 'valorProporcionalAñoPesos',
             filter: 'agNumberColumnFilter',
-            width: 180,
+            width: 200,
             type: 'numericColumn',
             aggFunc: 'sum',
             valueFormatter: params => params.value ? '$' + params.value.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '',
-            cellStyle: {'font-weight': 'bold', 'color': '#0d6efd'}
+            cellStyle: {'font-weight': 'bold', 'color': '#198754', 'background-color': '#d1e7dd'}
         },
         {
             headerName: 'Observaciones',
@@ -317,6 +340,7 @@ function inicializarGridExtranjeros() {
         groupDefaultExpanded: 1,            // Expandir primer nivel
         groupIncludeTotalFooter: true,      // Mostrar totales al final
         grandTotalRow: 'bottom',            // Total general al final
+        suppressAggFuncInHeader: true,      // No mostrar "sum(" en headers
         overlayNoRowsTemplate: '<span style="padding: 20px; font-size: 16px; color: #666;">No hay activos extranjeros para mostrar</span>',
         onGridReady: function(params) {
             gridApiExtranjeros = params.api;
@@ -374,6 +398,28 @@ function inicializarGridNacionales() {
             }
         },
         {
+            headerName: 'Fecha Inicio Depreciación',
+            field: 'fechaInicioDepreciacion',
+            filter: 'agDateColumnFilter',
+            width: 180,
+            valueFormatter: params => {
+                if (!params.value) return '';
+                const date = new Date(params.value);
+                return date.toLocaleDateString('es-MX');
+            }
+        },
+        {
+            headerName: 'Fecha Fin Depreciación',
+            field: 'fechaFinDepreciacion',
+            filter: 'agDateColumnFilter',
+            width: 180,
+            valueFormatter: params => {
+                if (!params.value) return '';
+                const date = new Date(params.value);
+                return date.toLocaleDateString('es-MX');
+            }
+        },
+        {
             headerName: 'Fecha Baja',
             field: 'fechaBaja',
             filter: 'agDateColumnFilter',
@@ -391,7 +437,7 @@ function inicializarGridNacionales() {
             width: 140,
             type: 'numericColumn',
             aggFunc: 'sum',
-            valueFormatter: params => params.value ? params.value.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : ''
+            valueFormatter: params => params.value != null ? params.value.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : ''
         },
         {
             headerName: 'Anual Rate',
@@ -416,7 +462,7 @@ function inicializarGridNacionales() {
             width: 140,
             type: 'numericColumn',
             aggFunc: 'sum',
-            valueFormatter: params => params.value ? params.value.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : ''
+            valueFormatter: params => params.value != null ? params.value.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : ''
         },
         {
             headerName: 'Meses Uso Al Ejerc. Anterior',
@@ -439,7 +485,7 @@ function inicializarGridNacionales() {
             width: 180,
             type: 'numericColumn',
             aggFunc: 'sum',
-            valueFormatter: params => params.value ? params.value.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : ''
+            valueFormatter: params => params.value != null ? params.value.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : ''
         },
         {
             headerName: 'Saldo Por Deducir ISR Inicio',
@@ -448,47 +494,47 @@ function inicializarGridNacionales() {
             width: 200,
             type: 'numericColumn',
             aggFunc: 'sum',
-            valueFormatter: params => params.value ? params.value.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : ''
+            valueFormatter: params => params.value != null ? params.value.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : ''
         },
-        // PASO 1: INPC Actualización
+        // PASO 1: INPC Actualización FISCAL
         {
-            headerName: 'INPC Adquisición',
+            headerName: 'FI_INPC Adquisición',
             field: 'inpcAdquisicion',
             filter: 'agNumberColumnFilter',
-            width: 140,
+            width: 160,
             type: 'numericColumn',
             valueFormatter: params => params.value ? params.value.toFixed(6) : '',
             cellStyle: {'background-color': '#e7f3ff'}
         },
         {
-            headerName: 'INPC Mitad Ejercicio',
+            headerName: 'FI_INPC Mitad Ejercicio',
             field: 'inpcMitadEjercicio',
             filter: 'agNumberColumnFilter',
-            width: 150,
+            width: 170,
             type: 'numericColumn',
             valueFormatter: params => params.value ? params.value.toFixed(6) : '',
             cellStyle: {'background-color': '#e7f3ff'}
         },
         {
-            headerName: 'Factor Actualiz. (P1)',
+            headerName: 'FI_Factor Actualiz. (P1)',
             field: 'factorActualizacionPaso1',
             filter: 'agNumberColumnFilter',
-            width: 160,
+            width: 180,
             type: 'numericColumn',
             valueFormatter: params => params.value ? params.value.toFixed(4) : '',
             cellStyle: {'background-color': '#e7f3ff', 'font-weight': 'bold'}
         },
         {
-            headerName: 'Saldo Actualizado (P1)',
+            headerName: 'FI_Saldo Actualizado (P1)',
             field: 'saldoActualizadoPaso1',
             filter: 'agNumberColumnFilter',
-            width: 180,
+            width: 200,
             type: 'numericColumn',
             aggFunc: 'sum',
-            valueFormatter: params => params.value ? params.value.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '',
+            valueFormatter: params => params.value != null ? params.value.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '',
             cellStyle: {'background-color': '#e7f3ff', 'font-weight': 'bold'}
         },
-        // PASO 2: Depreciación Actualizada
+        // PASO 2: Depreciación Actualizada FISCAL
         {
             headerName: 'Dep Fiscal Ejercicio',
             field: 'depreciacionFiscalDelEjercicio',
@@ -496,95 +542,184 @@ function inicializarGridNacionales() {
             width: 150,
             type: 'numericColumn',
             aggFunc: 'sum',
-            valueFormatter: params => params.value ? params.value.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '',
+            valueFormatter: params => params.value != null ? params.value.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '',
             cellStyle: {'background-color': '#fff3cd'}
         },
         {
-            headerName: 'INPC Adquisición (P2)',
+            headerName: 'FI_INPC Adquisición (P2)',
             field: 'inpcAdquPaso2',
             filter: 'agNumberColumnFilter',
-            width: 160,
+            width: 180,
             type: 'numericColumn',
             valueFormatter: params => params.value ? params.value.toFixed(6) : '',
             cellStyle: {'background-color': '#fff3cd'}
         },
         {
-            headerName: 'INPC Mitad Periodo',
+            headerName: 'FI_INPC Mitad Periodo',
             field: 'inpcMitadPeriodo',
             filter: 'agNumberColumnFilter',
-            width: 150,
+            width: 170,
             type: 'numericColumn',
             valueFormatter: params => params.value ? params.value.toFixed(6) : '',
             cellStyle: {'background-color': '#fff3cd'}
         },
         {
-            headerName: 'Factor Actualiz. (P2)',
+            headerName: 'FI_Factor Actualiz. (P2)',
             field: 'factorActualizacionPaso2',
             filter: 'agNumberColumnFilter',
-            width: 160,
+            width: 180,
             type: 'numericColumn',
             valueFormatter: params => params.value ? params.value.toFixed(4) : '',
             cellStyle: {'background-color': '#fff3cd', 'font-weight': 'bold'}
         },
         {
-            headerName: 'Deprec Fiscal Actualizada',
+            headerName: 'FI_Deprec Fiscal Actualizada',
             field: 'depreciacionFiscalActualizada',
+            filter: 'agNumberColumnFilter',
+            width: 200,
+            type: 'numericColumn',
+            aggFunc: 'sum',
+            valueFormatter: params => params.value != null ? params.value.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '',
+            cellStyle: {'background-color': '#fff3cd', 'font-weight': 'bold'}
+        },
+        {
+            headerName: 'FI_50% Deprec Fiscal',
+            field: 'mitadDepreciacionFiscal',
             filter: 'agNumberColumnFilter',
             width: 180,
             type: 'numericColumn',
             aggFunc: 'sum',
-            valueFormatter: params => params.value ? params.value.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '',
+            valueFormatter: params => params.value != null ? params.value.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '',
             cellStyle: {'background-color': '#fff3cd', 'font-weight': 'bold'}
         },
+        // PASO 3: Valor FISCAL
         {
-            headerName: '50% Deprec Fiscal',
-            field: 'mitadDepreciacionFiscal',
+            headerName: 'FI_Valor Promedio',
+            field: 'valorPromedio',
             filter: 'agNumberColumnFilter',
             width: 160,
             type: 'numericColumn',
             aggFunc: 'sum',
-            valueFormatter: params => params.value ? params.value.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '',
-            cellStyle: {'background-color': '#fff3cd', 'font-weight': 'bold'}
-        },
-        // PASO 3: Valor Safe Harbor
-        {
-            headerName: 'Valor Promedio',
-            field: 'valorPromedio',
-            filter: 'agNumberColumnFilter',
-            width: 140,
-            type: 'numericColumn',
-            aggFunc: 'sum',
-            valueFormatter: params => params.value ? params.value.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '',
-            cellStyle: {'background-color': '#d1e7dd'}
+            valueFormatter: params => params.value != null ? params.value.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '',
+            cellStyle: {'background-color': '#fff3cd'}
         },
         {
-            headerName: 'Valor Prom. Prop. Año',
+            headerName: 'FI_Valor Prom. Prop. Año',
             field: 'valorPromedioProporcionalAño',
-            filter: 'agNumberColumnFilter',
-            width: 170,
-            type: 'numericColumn',
-            aggFunc: 'sum',
-            valueFormatter: params => params.value ? params.value.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '',
-            cellStyle: {'background-color': '#d1e7dd', 'font-weight': 'bold', 'color': '#0d6efd'}
-        },
-        {
-            headerName: 'Saldo Fiscal Deducir Hist.',
-            field: 'saldoFiscalPorDeducirHistorico',
-            filter: 'agNumberColumnFilter',
-            width: 180,
-            type: 'numericColumn',
-            aggFunc: 'sum',
-            valueFormatter: params => params.value ? params.value.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '',
-            cellStyle: {'background-color': '#d1e7dd'}
-        },
-        {
-            headerName: 'Saldo Fiscal Deducir Actual.',
-            field: 'saldoFiscalPorDeducirActualizado',
             filter: 'agNumberColumnFilter',
             width: 190,
             type: 'numericColumn',
             aggFunc: 'sum',
-            valueFormatter: params => params.value ? params.value.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '',
+            valueFormatter: params => params.value != null ? params.value.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '',
+            cellStyle: {'background-color': '#fff3cd', 'font-weight': 'bold', 'color': '#0d6efd'}
+        },
+        // CAMPOS SAFE HARBOR
+        {
+            headerName: 'SH_INPC Junio',
+            field: 'inpcSHJunio',
+            filter: 'agNumberColumnFilter',
+            width: 150,
+            type: 'numericColumn',
+            valueFormatter: params => params.value ? params.value.toFixed(6) : '',
+            cellStyle: {'background-color': '#d1e7dd'}
+        },
+        {
+            headerName: 'SH_Factor Actualiz.',
+            field: 'factorSH',
+            filter: 'agNumberColumnFilter',
+            width: 160,
+            type: 'numericColumn',
+            valueFormatter: params => params.value ? params.value.toFixed(4) : '',
+            cellStyle: {'background-color': '#d1e7dd', 'font-weight': 'bold'}
+        },
+        {
+            headerName: 'SH_Saldo Actualizado',
+            field: 'saldoSHActualizado',
+            filter: 'agNumberColumnFilter',
+            width: 180,
+            type: 'numericColumn',
+            aggFunc: 'sum',
+            valueFormatter: params => params.value != null ? params.value.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '',
+            cellStyle: {'background-color': '#d1e7dd', 'font-weight': 'bold'}
+        },
+        {
+            headerName: 'SH_Dep Actualizada',
+            field: 'depSHActualizada',
+            filter: 'agNumberColumnFilter',
+            width: 170,
+            type: 'numericColumn',
+            aggFunc: 'sum',
+            valueFormatter: params => params.value != null ? params.value.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '',
+            cellStyle: {'background-color': '#d1e7dd'}
+        },
+        {
+            headerName: 'SH_50% Dep',
+            field: 'mitadDepSH',
+            filter: 'agNumberColumnFilter',
+            width: 150,
+            type: 'numericColumn',
+            aggFunc: 'sum',
+            valueFormatter: params => params.value != null ? params.value.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '',
+            cellStyle: {'background-color': '#d1e7dd'}
+        },
+        {
+            headerName: 'SH_Valor Promedio',
+            field: 'valorSHPromedio',
+            filter: 'agNumberColumnFilter',
+            width: 160,
+            type: 'numericColumn',
+            aggFunc: 'sum',
+            valueFormatter: params => params.value != null ? params.value.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '',
+            cellStyle: {'background-color': '#d1e7dd'}
+        },
+        {
+            headerName: 'SH_Valor Prom. Prop. Año',
+            field: 'valorSHProporcionalAño',
+            filter: 'agNumberColumnFilter',
+            width: 190,
+            type: 'numericColumn',
+            aggFunc: 'sum',
+            valueFormatter: params => params.value != null ? params.value.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '',
+            cellStyle: {'background-color': '#d1e7dd', 'font-weight': 'bold'}
+        },
+        {
+            headerName: 'SH_Prueba 10% MOI',
+            field: 'pruebaDel10PctMOI',
+            filter: 'agNumberColumnFilter',
+            width: 160,
+            type: 'numericColumn',
+            aggFunc: 'sum',
+            valueFormatter: params => params.value != null ? params.value.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '',
+            cellStyle: {'background-color': '#d1e7dd'}
+        },
+        {
+            headerName: 'SH_Valor Reportable',
+            field: 'valorReportableSafeHarbor',
+            filter: 'agNumberColumnFilter',
+            width: 180,
+            type: 'numericColumn',
+            aggFunc: 'sum',
+            valueFormatter: params => params.value != null ? params.value.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '',
+            cellStyle: {'background-color': '#d1e7dd', 'font-weight': 'bold', 'color': '#198754', 'font-size': '13px'}
+        },
+        {
+            headerName: 'SH_Saldo Fiscal Deducir Hist.',
+            field: 'saldoFiscalPorDeducirHistorico',
+            filter: 'agNumberColumnFilter',
+            width: 200,
+            type: 'numericColumn',
+            aggFunc: 'sum',
+            valueFormatter: params => params.value != null ? params.value.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '',
+            cellStyle: {'background-color': '#d1e7dd'}
+        },
+        {
+            headerName: 'SH_Saldo Fiscal Deducir Actual.',
+            field: 'saldoFiscalPorDeducirActualizado',
+            filter: 'agNumberColumnFilter',
+            width: 210,
+            type: 'numericColumn',
+            aggFunc: 'sum',
+            valueFormatter: params => params.value != null ? params.value.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '',
             cellStyle: {'background-color': '#d1e7dd'}
         },
         {
@@ -642,6 +777,7 @@ function inicializarGridNacionales() {
         groupDefaultExpanded: 1,
         groupIncludeTotalFooter: true,
         grandTotalRow: 'bottom',
+        suppressAggFuncInHeader: true,      // No mostrar "sum(" en headers
         overlayNoRowsTemplate: '<span style="padding: 20px; font-size: 16px; color: #666;">No hay activos nacionales para mostrar</span>',
         onGridReady: function(params) {
             gridApiNacionales = params.api;
@@ -836,7 +972,11 @@ function exportarExcel() {
             'valorPromedioProporcionalAño', 'costoRevaluado', 'factorActualizacion',
             'moiActualizado', 'depAcumActual', 'saldoPorDepreciarInicioPeriodo',
             'depEjercicioActualizada', 'saldoPorDepreciarDespuesDelEjercicio',
-            'promedioActivoFijoAcumuladoAnual'
+            'promedioActivoFijoAcumuladoAnual',
+            // Campos Safe Harbor Nacionales
+            'saldoActualizadoPaso1', 'depreciacionFiscalActualizada', 'mitadDepreciacionFiscal',
+            'valorPromedio', 'valorReportableSafeHarbor', 'saldoFiscalPorDeducirHistorico',
+            'saldoFiscalPorDeducirActualizado'
         ];
 
         for (let R = range.s.r + 1; R <= range.e.r; ++R) {
@@ -852,6 +992,43 @@ function exportarExcel() {
                 // Si es un número Y la columna es monetaria, aplicar formato de moneda
                 if (typeof value === 'number' && cell.t === 'n' && colDef && camposMonetarios.includes(colDef.field)) {
                     cell.z = '$#,##0.00';
+                }
+            }
+        }
+
+        // Aplicar estilos de color a las columnas (si la celda tiene estilo definido)
+        for (let R = range.s.r; R <= range.e.r; ++R) {
+            for (let C = range.s.c; C <= range.e.c; ++C) {
+                const cellAddress = XLSX.utils.encode_cell({ r: R, c: C });
+                const cell = ws[cellAddress];
+
+                if (!cell) continue;
+
+                const colDef = columnDefs[C];
+                if (!colDef || !colDef.cellStyle) continue;
+
+                // Obtener color de fondo del cellStyle
+                const bgColor = colDef.cellStyle['background-color'];
+
+                if (bgColor) {
+                    // Inicializar objeto s si no existe
+                    if (!cell.s) cell.s = {};
+
+                    // Convertir color hex a RGB para Excel
+                    let fillColor = 'FFFFFF'; // Blanco por defecto
+
+                    if (bgColor === '#e7f3ff') fillColor = 'E7F3FF'; // Azul claro (Fiscal Paso 1)
+                    else if (bgColor === '#fff3cd') fillColor = 'FFF3CD'; // Amarillo claro (Fiscal Paso 2)
+                    else if (bgColor === '#d1e7dd') fillColor = 'D1E7DD'; // Verde claro (Safe Harbor)
+
+                    // Aplicar estilo (nota: SheetJS básico no soporta esto, pero lo dejamos para futuras versiones)
+                    cell.s.fill = { fgColor: { rgb: fillColor } };
+
+                    // Si es bold según cellStyle
+                    if (colDef.cellStyle['font-weight'] === 'bold') {
+                        if (!cell.s.font) cell.s.font = {};
+                        cell.s.font.bold = true;
+                    }
                 }
             }
         }

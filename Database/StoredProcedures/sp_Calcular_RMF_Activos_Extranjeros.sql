@@ -1,5 +1,9 @@
 -- =============================================
--- DROP y RE-CREATE del Stored Procedure v4.8
+-- DROP y RE-CREATE del Stored Procedure v5.0
+-- CAMBIOS v5.0:
+-- - AGREGADO: Campo FECHA_FIN_DEPREC (fecha fin de depreciación)
+-- - Se calcula como: FECHA_INIC_DEPREC_3 + (1/Tasa_Mensual - 1) meses, día 01
+-- - Se guarda en Calculo_RMF.Fecha_Inicio_Depreciacion y Fecha_Fin_Depreciacion
 -- CAMBIOS v4.8:
 -- - ELIMINADO: Campos INPC de tabla temporal y queries (extranjeros no usan INPC)
 -- - Staging_Activo ya no tiene campos INPC
@@ -30,7 +34,7 @@ BEGIN
     DECLARE @RegistrosProcesados INT = 0;
 
     PRINT '========================================';
-    PRINT 'Iniciando cálculo RMF Activos Extranjeros v4.8';
+    PRINT 'Iniciando cálculo RMF Activos Extranjeros v5.0';
     PRINT 'Compañía: ' + CAST(@ID_Compania AS VARCHAR(10));
     PRINT 'Año: ' + CAST(@Año_Calculo AS VARCHAR(10));
     PRINT '========================================';
@@ -83,6 +87,7 @@ BEGIN
         FECHA_COMPRA DATE,
         FECHA_BAJA DATE,
         FECHA_INIC_DEPREC_3 DATE,
+        FECHA_FIN_DEPREC DATE,
         ID_PAIS INT,
         Dep_Acum_Inicio DECIMAL(18,4),
         Dep_Acum_Calculada DECIMAL(18,4),
@@ -179,6 +184,24 @@ BEGIN
     -- IMPORTANTE: Tasa_Anual está como entero (ej: 5 para 5%), dividir entre 100
     UPDATE #ActivosCalculo
     SET Dep_Anual = MOI * (Tasa_Anual / 100);
+
+    -- 2.1. Calcular Fecha Fin Depreciación
+    -- Tasa_Mensual está en formato decimal (0.0125 = 1.25%)
+    -- Meses_Totales = 1 / Tasa_Mensual
+    -- Fecha_Fin_Deprec = FECHA_INIC_DEPREC_3 + (Meses_Totales - 1) con día 01
+    UPDATE #ActivosCalculo
+    SET FECHA_FIN_DEPREC =
+        CASE
+            WHEN FECHA_INIC_DEPREC_3 IS NOT NULL AND Tasa_Mensual > 0 THEN
+                DATEFROMPARTS(
+                    YEAR(DATEADD(MONTH, CAST((1.0 / Tasa_Mensual) - 1 AS INT), FECHA_INIC_DEPREC_3)),
+                    MONTH(DATEADD(MONTH, CAST((1.0 / Tasa_Mensual) - 1 AS INT), FECHA_INIC_DEPREC_3)),
+                    1  -- Día 01 del mes final
+                )
+            ELSE NULL
+        END;
+
+    PRINT 'Fecha Fin Depreciación calculada (Día 01 del mes final)';
 
     -- 3. Calcular meses de uso al inicio del ejercicio
     UPDATE #ActivosCalculo
@@ -308,6 +331,8 @@ BEGIN
         Tipo_Cambio_30_Junio,
         Valor_Reportable_MXN,
         Fecha_Adquisicion,
+        Fecha_Inicio_Depreciacion,
+        Fecha_Fin_Depreciacion,
         Fecha_Baja,
         Fecha_Calculo,
         Version_SP
@@ -341,9 +366,11 @@ BEGIN
         @TipoCambio_30Jun,
         Valor_MXN,
         FECHA_COMPRA,
+        FECHA_INIC_DEPREC_3,
+        FECHA_FIN_DEPREC,
         FECHA_BAJA,
         GETDATE(),
-        'v4.9-LIMPIO'
+        'v5.0-FECHA-FIN-DEP'
     FROM #ActivosCalculo
     WHERE Valor_MXN IS NOT NULL;
 

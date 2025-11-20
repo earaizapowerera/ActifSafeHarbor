@@ -1,8 +1,11 @@
 -- =============================================
--- SP Calcular RMF Activos NACIONALES v5.0 - SAFE HARBOR
+-- SP Calcular RMF Activos NACIONALES v5.3 - SAFE HARBOR + VALIDACIÓN INPC + AUTO DEP ACUM
 -- Agrega cálculos Safe Harbor usando INPC de JUNIO
 -- FISCAL: Mantiene cálculos actuales (actualizados por programa externo)
 -- SAFE HARBOR: Nuevos cálculos con INPC fijo de junio
+-- v5.1: Validación de INPC - Marca ERROR cuando no encuentra INPC y reporta qué INPC falta
+-- v5.2: Agrega campos INPC_Mitad_Ejercicio e INPC_Mitad_Periodo para reportes
+-- v5.3: Calcula automáticamente Dep_Acum_Inicio cuando es 0 o NULL (datos no migrados)
 -- =============================================
 
 USE Actif_RMF;
@@ -28,7 +31,8 @@ BEGIN
     DECLARE @INPC_Junio DECIMAL(18,6) = NULL;
 
     PRINT '========================================';
-    PRINT 'Cálculo RMF Activos Nacionales v5.0 - SAFE HARBOR';
+    PRINT 'Cálculo RMF Activos Nacionales v5.3';
+    PRINT 'SAFE HARBOR + VALIDACIÓN INPC + AUTO DEP ACUM';
     PRINT 'Compañía: ' + CAST(@ID_Compania AS VARCHAR(10));
     PRINT 'Año: ' + CAST(@Año_Calculo AS VARCHAR(10));
     PRINT '========================================';
@@ -71,6 +75,7 @@ BEGIN
         Dep_Anual DECIMAL(18,4),
         FECHA_COMPRA DATE,
         FECHA_INICIO_DEP DATE,
+        FECHA_FIN_DEPREC DATE,
         FECHA_BAJA DATE,
         ID_PAIS INT,
         Dep_Acum_Inicio DECIMAL(18,4),
@@ -78,6 +83,8 @@ BEGIN
         -- INPC
         INPCCompra DECIMAL(18,6),
         INPCUtilizado DECIMAL(18,6),  -- Para fiscal (actualizado después)
+        INPC_Mitad_Ejercicio DECIMAL(18,6),  -- INPC del 30 de junio
+        INPC_Mitad_Periodo DECIMAL(18,6),  -- INPC de mitad del periodo de uso
 
         -- Meses
         Meses_Uso_Inicio_Ejercicio INT,
@@ -119,7 +126,11 @@ BEGIN
 
         -- Control
         Ruta_Calculo NVARCHAR(20),
-        Descripcion_Ruta NVARCHAR(200)
+        Descripcion_Ruta NVARCHAR(200),
+
+        -- Validación INPC
+        TieneErrorINPC BIT DEFAULT 0,
+        MensajeErrorINPC NVARCHAR(500)
     );
 
     -- 4. Insertar activos NACIONALES
@@ -168,11 +179,113 @@ BEGIN
 
     PRINT 'INPC de compra obtenidos de tabla local INPC2';
 
+    -- 5.1. VALIDAR INPC FALTANTES - Marcar errores de cálculo
+    DECLARE @ActivosConErrorINPC INT;
+
+    UPDATE #ActivosCalculo
+    SET TieneErrorINPC = 1,
+        MensajeErrorINPC = 'ERROR: No se encontró INPC para ' +
+            DATENAME(MONTH, FECHA_COMPRA) + ' ' + CAST(YEAR(FECHA_COMPRA) AS VARCHAR(4)) +
+            ' (Año: ' + CAST(YEAR(FECHA_COMPRA) AS VARCHAR(4)) +
+            ', Mes: ' + CAST(MONTH(FECHA_COMPRA) AS VARCHAR(2)) + ')'
+    WHERE INPCCompra IS NULL
+      AND FECHA_COMPRA IS NOT NULL;
+
+    SET @ActivosConErrorINPC = @@ROWCOUNT;
+
+    IF @ActivosConErrorINPC > 0
+    BEGIN
+        PRINT '';
+        PRINT '*** ADVERTENCIA: ' + CAST(@ActivosConErrorINPC AS VARCHAR(10)) + ' activos con INPC faltante ***';
+        PRINT 'Los cálculos de estos activos estarán marcados con ERROR';
+        PRINT '';
+
+        -- Mostrar detalle de INPCs faltantes
+        DECLARE @INPCsFaltantes NVARCHAR(MAX);
+        SELECT @INPCsFaltantes = STRING_AGG(
+            CAST(YEAR(FECHA_COMPRA) AS VARCHAR(4)) + '-' +
+            RIGHT('0' + CAST(MONTH(FECHA_COMPRA) AS VARCHAR(2)), 2) +
+            ' (Folio: ' + CAST(ID_NUM_ACTIVO AS VARCHAR(10)) + ')',
+            ', '
+        )
+        FROM #ActivosCalculo
+        WHERE TieneErrorINPC = 1;
+
+        PRINT 'INPCs faltantes: ' + ISNULL(@INPCsFaltantes, 'N/A');
+        PRINT '';
+    END
+
+    -- 5.2. Obtener INPC Mitad Ejercicio (30 junio) para TODOS los activos
+    UPDATE #ActivosCalculo
+    SET INPC_Mitad_Ejercicio = @INPC_Junio;
+
+    PRINT 'INPC Mitad Ejercicio (30 junio) asignado: ' + CAST(@INPC_Junio AS VARCHAR(20));
+
+    -- 5.3. Calcular INPC Mitad Periodo
+    -- Primero calcular la fecha de mitad del periodo de uso
+    DECLARE @TempINPCMitadPeriodo TABLE (
+        ID_Staging BIGINT,
+        Fecha_Mitad_Periodo DATE,
+        INPC_Mitad_Periodo DECIMAL(18,6)
+    );
+
+    INSERT INTO @TempINPCMitadPeriodo (ID_Staging, Fecha_Mitad_Periodo, INPC_Mitad_Periodo)
+    SELECT
+        ac.ID_Staging,
+        -- Fecha mitad del periodo
+        CASE
+            WHEN ac.FECHA_BAJA IS NOT NULL AND YEAR(ac.FECHA_BAJA) = @Año_Calculo THEN
+                DATEADD(DAY, DATEDIFF(DAY, CAST(CAST(@Año_Calculo AS VARCHAR(4)) + '-01-01' AS DATE), ac.FECHA_BAJA) / 2,
+                        CAST(CAST(@Año_Calculo AS VARCHAR(4)) + '-01-01' AS DATE))
+            WHEN ac.FECHA_COMPRA >= CAST(CAST(@Año_Calculo AS VARCHAR(4)) + '-01-01' AS DATE) THEN
+                DATEADD(DAY, DATEDIFF(DAY, ac.FECHA_COMPRA, CAST(CAST(@Año_Calculo AS VARCHAR(4)) + '-12-31' AS DATE)) / 2, ac.FECHA_COMPRA)
+            ELSE
+                @Fecha_30_Junio  -- Activo todo el año: mitad = 30 junio
+        END AS Fecha_Mitad_Periodo,
+        NULL AS INPC_Mitad_Periodo
+    FROM #ActivosCalculo ac;
+
+    -- Obtener INPC de esa fecha
+    UPDATE tmp
+    SET tmp.INPC_Mitad_Periodo = inpc.Indice
+    FROM @TempINPCMitadPeriodo tmp
+    LEFT JOIN INPC2 inpc
+        ON YEAR(tmp.Fecha_Mitad_Periodo) = inpc.Anio
+        AND MONTH(tmp.Fecha_Mitad_Periodo) = inpc.Mes
+        AND inpc.Id_Pais = 1
+        AND inpc.Id_Grupo_Simulacion = 8;
+
+    -- Actualizar tabla principal
+    UPDATE ac
+    SET ac.INPC_Mitad_Periodo = tmp.INPC_Mitad_Periodo
+    FROM #ActivosCalculo ac
+    INNER JOIN @TempINPCMitadPeriodo tmp ON ac.ID_Staging = tmp.ID_Staging;
+
+    PRINT 'INPC Mitad Periodo calculado';
+
     -- 6. Calcular Depreciación Anual
     UPDATE #ActivosCalculo
     SET Dep_Anual = MOI * (Tasa_Anual / 100);
 
-    -- 7. Calcular meses de uso al inicio del ejercicio
+    -- 6.1. Calcular Fecha Fin Depreciación
+    -- Tasa_Mensual está en formato decimal (0.0125 = 1.25%)
+    -- Meses_Totales = 1 / Tasa_Mensual
+    -- Fecha_Fin_Deprec = FECHA_INICIO_DEP + (Meses_Totales - 1) con día 01
+    UPDATE #ActivosCalculo
+    SET FECHA_FIN_DEPREC =
+        CASE
+            WHEN FECHA_INICIO_DEP IS NOT NULL AND Tasa_Mensual > 0 THEN
+                DATEFROMPARTS(
+                    YEAR(DATEADD(MONTH, CAST((1.0 / Tasa_Mensual) - 1 AS INT), FECHA_INICIO_DEP)),
+                    MONTH(DATEADD(MONTH, CAST((1.0 / Tasa_Mensual) - 1 AS INT), FECHA_INICIO_DEP)),
+                    1  -- Día 01 del mes final
+                )
+            ELSE NULL
+        END;
+
+    PRINT 'Fecha Fin Depreciación calculada (Día 01 del mes final)';
+
+    -- 7. Calcular meses de uso al inicio del ejercicio (desde FECHA_INICIO_DEP, día 01 a día 01)
     UPDATE #ActivosCalculo
     SET Meses_Uso_Inicio_Ejercicio =
         CASE
@@ -180,6 +293,21 @@ BEGIN
             THEN 0
             ELSE DATEDIFF(MONTH, FECHA_INICIO_DEP, CAST(CAST(@Año_Anterior AS VARCHAR(4)) + '-12-31' AS DATE)) + 1
         END;
+
+    -- 7.1. Calcular Dep_Acum_Inicio cuando es 0 o NULL (datos no migrados del sistema anterior)
+    DECLARE @ActivosDepAcumCalculado INT;
+
+    UPDATE #ActivosCalculo
+    SET Dep_Acum_Inicio = MOI * (Tasa_Anual / 12 / 100) * Meses_Uso_Inicio_Ejercicio
+    WHERE (Dep_Acum_Inicio = 0 OR Dep_Acum_Inicio IS NULL)
+      AND Meses_Uso_Inicio_Ejercicio > 0;
+
+    SET @ActivosDepAcumCalculado = @@ROWCOUNT;
+
+    IF @ActivosDepAcumCalculado > 0
+    BEGIN
+        PRINT 'Dep_Acum_Inicio calculado automáticamente para ' + CAST(@ActivosDepAcumCalculado AS VARCHAR(10)) + ' activos sin datos del año anterior';
+    END
 
     -- 8. Calcular meses hasta la mitad del periodo
     UPDATE #ActivosCalculo
@@ -207,18 +335,20 @@ BEGIN
 
     -- 10. Calcular Saldo por Deducir ISR al Inicio del Año
     UPDATE #ActivosCalculo
-    SET Saldo_Inicio_Año = MOI - Dep_Acum_Inicio;
+    SET Saldo_Inicio_Año =
+        CASE
+            WHEN (MOI - Dep_Acum_Inicio) < 0 THEN 0
+            ELSE MOI - Dep_Acum_Inicio
+        END;
 
-    -- 11. EXCLUIR activos totalmente depreciados
-    DELETE FROM #ActivosCalculo
-    WHERE Saldo_Inicio_Año <= 0;
+    PRINT 'Saldo Inicio Año calculado (incluyendo activos completamente depreciados)';
 
-    PRINT 'Activos totalmente depreciados excluidos: ' + CAST(@@ROWCOUNT AS VARCHAR(10));
-
-    -- 12. Calcular Depreciación Fiscal del Ejercicio
+    -- 11. Calcular Depreciación Fiscal del Ejercicio
+    -- Si el activo ya está completamente depreciado (Saldo_Inicio_Año = 0), Dep_Ejercicio = 0
     UPDATE #ActivosCalculo
     SET Dep_Ejercicio =
         CASE
+            WHEN Saldo_Inicio_Año <= 0 THEN 0
             WHEN (MOI * (Tasa_Anual / 12 / 100) * Meses_Uso_Ejercicio) > Saldo_Inicio_Año
             THEN Saldo_Inicio_Año
             ELSE MOI * (Tasa_Anual / 12 / 100) * Meses_Uso_Ejercicio
@@ -349,7 +479,7 @@ BEGIN
         MOI, Tasa_Anual, Tasa_Mensual, Dep_Anual, Dep_Acum_Inicio,
 
         -- INPC
-        INPCCompra, INPCUtilizado,
+        INPCCompra, INPCUtilizado, INPC_Mitad_Ejercicio, INPC_Mitad_Periodo,
 
         -- CAMPOS FISCALES (actualizados después por programa externo)
         Factor_Actualizacion_Saldo, Factor_Actualizacion_Dep,
@@ -369,7 +499,8 @@ BEGIN
         Saldo_Inicio_Año, Dep_Fiscal_Ejercicio, Monto_Pendiente,
         Prueba_10_Pct_MOI, Aplica_10_Pct,
         Valor_Reportable_USD, Tipo_Cambio_30_Junio, Valor_Reportable_MXN,
-        Fecha_Adquisicion, Fecha_Baja, Fecha_Calculo, Version_SP
+        Fecha_Adquisicion, Fecha_Inicio_Depreciacion, Fecha_Fin_Depreciacion, Fecha_Baja,
+        Observaciones, Fecha_Calculo, Version_SP
     )
     SELECT
         ID_Staging, @ID_Compania, ID_NUM_ACTIVO, @Año_Calculo, 'Nacional',
@@ -377,7 +508,7 @@ BEGIN
         MOI, Tasa_Anual, Tasa_Mensual, Dep_Anual, Dep_Acum_Inicio,
 
         -- INPC
-        INPCCompra, INPCUtilizado,  -- NULL por ahora
+        INPCCompra, INPCUtilizado, INPC_Mitad_Ejercicio, INPC_Mitad_Periodo,
 
         -- CAMPOS FISCALES
         Factor_Actualizacion_Saldo, Factor_Actualizacion_Dep,
@@ -397,7 +528,13 @@ BEGIN
         Saldo_Inicio_Año, Dep_Ejercicio, Monto_Pendiente,
         Prueba_10Pct, Aplica_Regla_10Pct,
         NULL, NULL, Valor_MXN,  -- No aplican USD ni TC para nacionales
-        FECHA_COMPRA, FECHA_BAJA, GETDATE(), 'v5.0-SAFE-HARBOR'
+        FECHA_COMPRA, FECHA_INICIO_DEP, FECHA_FIN_DEPREC, FECHA_BAJA,
+        -- Observaciones con error de INPC si aplica
+        CASE
+            WHEN TieneErrorINPC = 1 THEN MensajeErrorINPC
+            ELSE NULL
+        END,
+        GETDATE(), 'v5.3-AUTO-DEP-ACUM'
     FROM #ActivosCalculo;
 
     SET @RegistrosProcesados = @@ROWCOUNT;
@@ -406,11 +543,13 @@ BEGIN
     DECLARE @TotalValorFiscal DECIMAL(18,2);
     DECLARE @TotalValorSafeHarbor DECIMAL(18,2);
     DECLARE @ActivosRegla10Pct INT;
+    DECLARE @TotalActivosConError INT;
 
     SELECT
         @TotalValorFiscal = SUM(Valor_MXN),
         @TotalValorSafeHarbor = SUM(Valor_SH_Reportable),
-        @ActivosRegla10Pct = SUM(CAST(Aplica_Regla_10Pct AS INT))
+        @ActivosRegla10Pct = SUM(CAST(Aplica_Regla_10Pct AS INT)),
+        @TotalActivosConError = SUM(CAST(TieneErrorINPC AS INT))
     FROM #ActivosCalculo;
 
     PRINT '';
@@ -422,6 +561,12 @@ BEGIN
     PRINT 'Total valor SAFE HARBOR (MXN): $' + FORMAT(@TotalValorSafeHarbor, 'N2');
     PRINT 'Activos con regla 10% MOI: ' + CAST(@ActivosRegla10Pct AS VARCHAR(10));
     PRINT 'INPC Junio utilizado: ' + CAST(@INPC_Junio AS VARCHAR(20));
+    IF @TotalActivosConError > 0
+    BEGIN
+        PRINT '';
+        PRINT '*** ATENCIÓN: ' + CAST(@TotalActivosConError AS VARCHAR(10)) + ' activos con ERROR de INPC ***';
+        PRINT '*** Revisar campo Observaciones en el reporte Excel ***';
+    END
     PRINT '';
 
     DROP TABLE #ActivosCalculo;

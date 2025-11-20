@@ -1073,6 +1073,7 @@ app.MapGet("/api/reporte", async (string? companias, int? año) =>
                 s.Nombre_TipoActivo AS Tipo,
                 s.FECHA_COMPRA AS Fecha_Adquisicion,
                 s.FECHA_INICIO_DEP AS Fecha_Inicio_Depreciacion,
+                c.Fecha_Fin_Depreciacion,
                 s.FECHA_BAJA AS Fecha_Baja,
                 c.MOI,
                 c.Tasa_Anual AS Anual_Rate,
@@ -1116,56 +1117,43 @@ app.MapGet("/api/reporte", async (string? companias, int? año) =>
                 s.Nombre_TipoActivo AS Tipo,
                 s.FECHA_COMPRA AS Fecha_Adquisicion,
                 s.FECHA_INICIO_DEP AS Fecha_Inicio_Depreciacion,
+                c.Fecha_Fin_Depreciacion,
                 s.FECHA_BAJA AS Fecha_Baja,
                 c.MOI,
                 c.Tasa_Anual AS Anual_Rate,
                 c.Tasa_Mensual AS Month_Rate,
                 c.Dep_Anual AS Deprec_Anual,
                 c.Meses_Uso_Inicio_Ejercicio AS Meses_Uso_Al_Ejercicio_Anterior,
+                c.Meses_Uso_Hasta_Mitad_Periodo AS Meses_Uso_Hasta_Mitad_Periodo,
                 c.Meses_Uso_En_Ejercicio AS Meses_Uso_En_Ejercicio,
                 c.Dep_Acum_Inicio AS Dep_Fiscal_Acumulada_Inicio_Año,
                 c.Saldo_Inicio_Año AS Saldo_Por_Deducir_ISR_Al_Inicio_Año,
+                -- CAMPOS FISCALES
                 c.INPCCompra AS INPC_Adquisicion,
-                c.INPCUtilizado AS INPC_Mitad_Ejercicio,
-                -- Factor de actualización paso 1
-                CASE
-                    WHEN c.INPCCompra > 0 THEN ROUND(c.INPCUtilizado / c.INPCCompra, 4)
-                    ELSE NULL
-                END AS Factor_Actualizacion_Paso1,
-                -- Saldo actualizado paso 1
-                CASE
-                    WHEN c.INPCCompra > 0 THEN c.Saldo_Inicio_Año * ROUND(c.INPCUtilizado / c.INPCCompra, 4)
-                    ELSE c.Saldo_Inicio_Año
-                END AS Saldo_Actualizado_Paso1,
+                c.INPC_Mitad_Ejercicio AS INPC_Mitad_Ejercicio,
+                c.Factor_Actualizacion_Saldo AS Factor_Actualizacion_Paso1,
+                c.Saldo_Actualizado AS Saldo_Actualizado_Paso1,
                 c.Dep_Fiscal_Ejercicio AS Depreciacion_Fiscal_Del_Ejercicio,
                 c.INPCCompra AS INPC_Adqu_Paso2,
-                c.INPCUtilizado AS INPC_Mitad_Periodo,
-                -- Factor de actualización paso 2
-                CASE
-                    WHEN c.INPCCompra > 0 THEN ROUND(c.INPCUtilizado / c.INPCCompra, 4)
-                    ELSE NULL
-                END AS Factor_Actualizacion_Paso2,
-                -- Depreciación fiscal actualizada
-                CASE
-                    WHEN c.INPCCompra > 0 THEN c.Dep_Fiscal_Ejercicio * ROUND(c.INPCUtilizado / c.INPCCompra, 4)
-                    ELSE c.Dep_Fiscal_Ejercicio
-                END AS Depreciacion_Fiscal_Actualizada,
-                -- 50% de la depreciación fiscal
-                CASE
-                    WHEN c.INPCCompra > 0 THEN (c.Dep_Fiscal_Ejercicio * ROUND(c.INPCUtilizado / c.INPCCompra, 4)) * 0.5
-                    ELSE c.Dep_Fiscal_Ejercicio * 0.5
-                END AS Mitad_Depreciacion_Fiscal,
-                -- Valor promedio (paso 3)
-                c.Monto_Pendiente AS Valor_Promedio,
+                c.INPC_Mitad_Periodo AS INPC_Mitad_Periodo,
+                c.Factor_Actualizacion_Dep AS Factor_Actualizacion_Paso2,
+                c.Dep_Actualizada AS Depreciacion_Fiscal_Actualizada,
+                (c.Dep_Actualizada * 0.5) AS Mitad_Depreciacion_Fiscal,
+                c.Valor_Promedio AS Valor_Promedio,
                 c.Proporcion AS Valor_Promedio_Proporcional_Año,
+                -- CAMPOS SAFE HARBOR
+                c.INPC_SH_Junio AS INPC_SH_Junio,
+                c.Factor_SH AS Factor_SH,
+                c.Saldo_SH_Actualizado AS Saldo_SH_Actualizado,
+                c.Dep_SH_Actualizada AS Dep_SH_Actualizada,
+                (c.Dep_SH_Actualizada * 0.5) AS Mitad_Dep_SH,
+                c.Valor_SH_Promedio AS Valor_SH_Promedio,
+                c.Proporcion_SH AS Valor_SH_Proporcional_Año,
                 c.Prueba_10_Pct_MOI AS Prueba_Del_10_Pct_MOI,
-                c.Valor_Reportable_MXN AS Valor_Reportable_Safe_Harbor,
+                c.Valor_SH_Reportable AS Valor_Reportable_Safe_Harbor,
                 -- Saldo fiscal histórico y actualizado
-                (c.MOI - c.Dep_Acum_Inicio - c.Dep_Fiscal_Ejercicio) AS Saldo_Fiscal_Por_Deducir_Historico,
-                CASE
-                    WHEN c.INPCCompra > 0 THEN (c.MOI - c.Dep_Acum_Inicio - c.Dep_Fiscal_Ejercicio) * ROUND(c.INPCUtilizado / c.INPCCompra, 4)
-                    ELSE (c.MOI - c.Dep_Acum_Inicio - c.Dep_Fiscal_Ejercicio)
-                END AS Saldo_Fiscal_Por_Deducir_Actualizado,
+                c.Saldo_SH_Fiscal_Hist AS Saldo_Fiscal_Por_Deducir_Historico,
+                c.Saldo_SH_Fiscal_Act AS Saldo_Fiscal_Por_Deducir_Actualizado,
                 CASE
                     WHEN s.FECHA_BAJA IS NOT NULL THEN 'B'
                     ELSE 'A'
@@ -1208,23 +1196,24 @@ app.MapGet("/api/reporte", async (string? companias, int? año) =>
                         tipo = reader.IsDBNull(5) ? null : reader.GetString(5),
                         fechaAdquisicion = reader.IsDBNull(6) ? (DateTime?)null : reader.GetDateTime(6),
                         fechaInicioDepreciacion = reader.IsDBNull(7) ? (DateTime?)null : reader.GetDateTime(7),
-                        fechaBaja = reader.IsDBNull(8) ? (DateTime?)null : reader.GetDateTime(8),
-                        moi = reader.GetDecimal(9),
-                        anualRate = reader.IsDBNull(10) ? (decimal?)null : reader.GetDecimal(10),
-                        monthRate = reader.IsDBNull(11) ? (decimal?)null : reader.GetDecimal(11),
-                        deprecAnual = reader.IsDBNull(12) ? (decimal?)null : reader.GetDecimal(12),
-                        mesesUsoAlInicioEjercicio = reader.GetInt32(13),
-                        mesesUsoHastaMitadPeriodo = reader.GetInt32(14),
-                        mesesUsoEnEjercicio = reader.GetInt32(15),
-                        depFiscalAcumuladaInicioAño = reader.GetDecimal(16),
-                        saldoPorDeducirISRAlInicioAño = reader.GetDecimal(17),
-                        depreciacionFiscalDelEjercicio = reader.GetDecimal(18),
-                        montoPendientePorDeducir = reader.IsDBNull(19) ? (decimal?)null : reader.GetDecimal(19),
-                        proporcionMontoPendientePorDeducir = reader.IsDBNull(20) ? (decimal?)null : reader.GetDecimal(20),
-                        pruebaDel10PctMOI = reader.IsDBNull(21) ? (decimal?)null : reader.GetDecimal(21),
-                        tipoCambio30Junio = reader.IsDBNull(22) ? (decimal?)null : reader.GetDecimal(22),
-                        valorProporcionalAñoPesos = reader.GetDecimal(23),
-                        observaciones = reader.IsDBNull(24) ? null : reader.GetString(24)
+                        fechaFinDepreciacion = reader.IsDBNull(8) ? (DateTime?)null : reader.GetDateTime(8),
+                        fechaBaja = reader.IsDBNull(9) ? (DateTime?)null : reader.GetDateTime(9),
+                        moi = reader.GetDecimal(10),
+                        anualRate = reader.IsDBNull(11) ? (decimal?)null : reader.GetDecimal(11),
+                        monthRate = reader.IsDBNull(12) ? (decimal?)null : reader.GetDecimal(12),
+                        deprecAnual = reader.IsDBNull(13) ? (decimal?)null : reader.GetDecimal(13),
+                        mesesUsoAlInicioEjercicio = reader.GetInt32(14),
+                        mesesUsoHastaMitadPeriodo = reader.GetInt32(15),
+                        mesesUsoEnEjercicio = reader.GetInt32(16),
+                        depFiscalAcumuladaInicioAño = reader.GetDecimal(17),
+                        saldoPorDeducirISRAlInicioAño = reader.GetDecimal(18),
+                        depreciacionFiscalDelEjercicio = reader.GetDecimal(19),
+                        montoPendientePorDeducir = reader.IsDBNull(20) ? (decimal?)null : reader.GetDecimal(20),
+                        proporcionMontoPendientePorDeducir = reader.IsDBNull(21) ? (decimal?)null : reader.GetDecimal(21),
+                        pruebaDel10PctMOI = reader.IsDBNull(22) ? (decimal?)null : reader.GetDecimal(22),
+                        tipoCambio30Junio = reader.IsDBNull(23) ? (decimal?)null : reader.GetDecimal(23),
+                        valorProporcionalAñoPesos = reader.GetDecimal(24),
+                        observaciones = reader.IsDBNull(25) ? null : reader.GetString(25)
                     });
                 }
                 catch (Exception ex)
@@ -1261,33 +1250,44 @@ app.MapGet("/api/reporte", async (string? companias, int? año) =>
                     tipo = reader.IsDBNull(5) ? null : reader.GetString(5),
                     fechaAdquisicion = reader.IsDBNull(6) ? (DateTime?)null : reader.GetDateTime(6),
                     fechaInicioDepreciacion = reader.IsDBNull(7) ? (DateTime?)null : reader.GetDateTime(7),
-                    fechaBaja = reader.IsDBNull(8) ? (DateTime?)null : reader.GetDateTime(8),
-                    moi = reader.GetDecimal(9),
-                    anualRate = reader.IsDBNull(10) ? (decimal?)null : reader.GetDecimal(10),
-                    monthRate = reader.IsDBNull(11) ? (decimal?)null : reader.GetDecimal(11),
-                    deprecAnual = reader.IsDBNull(12) ? (decimal?)null : reader.GetDecimal(12),
-                    mesesUsoAlEjercicioAnterior = reader.GetInt32(13),
-                    mesesUsoEnEjercicio = reader.GetInt32(14),
-                    depFiscalAcumuladaInicioAño = reader.GetDecimal(15),
-                    saldoPorDeducirISRAlInicioAño = reader.GetDecimal(16),
-                    inpcAdquisicion = reader.IsDBNull(17) ? (decimal?)null : reader.GetDecimal(17),
-                    inpcMitadEjercicio = reader.IsDBNull(18) ? (decimal?)null : reader.GetDecimal(18),
-                    factorActualizacionPaso1 = reader.IsDBNull(19) ? (decimal?)null : reader.GetDecimal(19),
-                    saldoActualizadoPaso1 = reader.IsDBNull(20) ? (decimal?)null : reader.GetDecimal(20),
-                    depreciacionFiscalDelEjercicio = reader.GetDecimal(21),
-                    inpcAdquPaso2 = reader.IsDBNull(22) ? (decimal?)null : reader.GetDecimal(22),
-                    inpcMitadPeriodo = reader.IsDBNull(23) ? (decimal?)null : reader.GetDecimal(23),
-                    factorActualizacionPaso2 = reader.IsDBNull(24) ? (decimal?)null : reader.GetDecimal(24),
-                    depreciacionFiscalActualizada = reader.IsDBNull(25) ? (decimal?)null : reader.GetDecimal(25),
-                    mitadDepreciacionFiscal = reader.IsDBNull(26) ? (decimal?)null : reader.GetDecimal(26),
-                    valorPromedio = reader.IsDBNull(27) ? (decimal?)null : reader.GetDecimal(27),
-                    valorPromedioProporcionalAño = reader.IsDBNull(28) ? (decimal?)null : reader.GetDecimal(28),
-                    pruebaDel10PctMOI = reader.IsDBNull(29) ? (decimal?)null : reader.GetDecimal(29),
-                    valorReportableSafeHarbor = reader.IsDBNull(30) ? (decimal?)null : reader.GetDecimal(30),
-                    saldoFiscalPorDeducirHistorico = reader.IsDBNull(31) ? (decimal?)null : reader.GetDecimal(31),
-                    saldoFiscalPorDeducirActualizado = reader.IsDBNull(32) ? (decimal?)null : reader.GetDecimal(32),
-                    estadoActivoBaja = reader.IsDBNull(33) ? null : reader.GetString(33),
-                    observaciones = reader.IsDBNull(34) ? null : reader.GetString(34)
+                    fechaFinDepreciacion = reader.IsDBNull(8) ? (DateTime?)null : reader.GetDateTime(8),
+                    fechaBaja = reader.IsDBNull(9) ? (DateTime?)null : reader.GetDateTime(9),
+                    moi = reader.GetDecimal(10),
+                    anualRate = reader.IsDBNull(11) ? (decimal?)null : reader.GetDecimal(11),
+                    monthRate = reader.IsDBNull(12) ? (decimal?)null : reader.GetDecimal(12),
+                    deprecAnual = reader.IsDBNull(13) ? (decimal?)null : reader.GetDecimal(13),
+                    mesesUsoAlEjercicioAnterior = reader.GetInt32(14),
+                    mesesUsoHastaMitadPeriodo = reader.GetInt32(15),
+                    mesesUsoEnEjercicio = reader.GetInt32(16),
+                    depFiscalAcumuladaInicioAño = reader.GetDecimal(17),
+                    saldoPorDeducirISRAlInicioAño = reader.GetDecimal(18),
+                    // CAMPOS FISCALES
+                    inpcAdquisicion = reader.IsDBNull(19) ? (decimal?)null : reader.GetDecimal(19),
+                    inpcMitadEjercicio = reader.IsDBNull(20) ? (decimal?)null : reader.GetDecimal(20),
+                    factorActualizacionPaso1 = reader.IsDBNull(21) ? (decimal?)null : reader.GetDecimal(21),
+                    saldoActualizadoPaso1 = reader.IsDBNull(22) ? (decimal?)null : reader.GetDecimal(22),
+                    depreciacionFiscalDelEjercicio = reader.GetDecimal(23),
+                    inpcAdquPaso2 = reader.IsDBNull(24) ? (decimal?)null : reader.GetDecimal(24),
+                    inpcMitadPeriodo = reader.IsDBNull(25) ? (decimal?)null : reader.GetDecimal(25),
+                    factorActualizacionPaso2 = reader.IsDBNull(26) ? (decimal?)null : reader.GetDecimal(26),
+                    depreciacionFiscalActualizada = reader.IsDBNull(27) ? (decimal?)null : reader.GetDecimal(27),
+                    mitadDepreciacionFiscal = reader.IsDBNull(28) ? (decimal?)null : reader.GetDecimal(28),
+                    valorPromedio = reader.IsDBNull(29) ? (decimal?)null : reader.GetDecimal(29),
+                    valorPromedioProporcionalAño = reader.IsDBNull(30) ? (decimal?)null : reader.GetDecimal(30),
+                    // CAMPOS SAFE HARBOR
+                    inpcSHJunio = reader.IsDBNull(31) ? (decimal?)null : reader.GetDecimal(31),
+                    factorSH = reader.IsDBNull(32) ? (decimal?)null : reader.GetDecimal(32),
+                    saldoSHActualizado = reader.IsDBNull(33) ? (decimal?)null : reader.GetDecimal(33),
+                    depSHActualizada = reader.IsDBNull(34) ? (decimal?)null : reader.GetDecimal(34),
+                    mitadDepSH = reader.IsDBNull(35) ? (decimal?)null : reader.GetDecimal(35),
+                    valorSHPromedio = reader.IsDBNull(36) ? (decimal?)null : reader.GetDecimal(36),
+                    valorSHProporcionalAño = reader.IsDBNull(37) ? (decimal?)null : reader.GetDecimal(37),
+                    pruebaDel10PctMOI = reader.IsDBNull(38) ? (decimal?)null : reader.GetDecimal(38),
+                    valorReportableSafeHarbor = reader.IsDBNull(39) ? (decimal?)null : reader.GetDecimal(39),
+                    saldoFiscalPorDeducirHistorico = reader.IsDBNull(40) ? (decimal?)null : reader.GetDecimal(40),
+                    saldoFiscalPorDeducirActualizado = reader.IsDBNull(41) ? (decimal?)null : reader.GetDecimal(41),
+                    estadoActivoBaja = reader.IsDBNull(42) ? null : reader.GetString(42),
+                    observaciones = reader.IsDBNull(43) ? null : reader.GetString(43)
                 });
             }
         }
