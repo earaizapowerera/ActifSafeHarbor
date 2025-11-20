@@ -1,0 +1,219 @@
+===================================================================================
+CASOS DE USO - ACTIVOS NACIONALES (MEXICANOS) - AÑO 2025
+Sistema: ActifRMF - Safe Harbor Calculator
+Fecha: 2025-11-20
+===================================================================================
+
+INSTRUCCIONES:
+1. Revisar cada caso de uso manualmente
+2. Actualizar el status: Pendiente → RevisadoOK o Error
+3. Documentar cualquier error encontrado en la columna "Observaciones"
+4. Los cálculos se verifican contra las reglas de LISR Art. 182 (Safe Harbor)
+
+===================================================================================
+
+CASO 1: ACTIVO NORMAL - EDIFICIO (TASA 5%)
+-----------------------------------------------------------------------------------
+ID_NUM_ACTIVO: 50847
+Compañía: PIEDRAS NEGRAS
+Tipo: 28100-Building
+Tasa Anual: 5.00% (Vida útil: 20 años)
+Fecha Adquisición: 1996-12-01
+Fecha Inicio Dep: 1996-12-01
+Fecha Fin Dep: 2016-11-01
+Fecha Baja: NULL
+
+Características:
+- Activo totalmente depreciado (más de 20 años)
+- Saldo por deducir debe ser 0
+- No reporta en Safe Harbor (ya está totalmente depreciado)
+
+Status: Pendiente
+Observaciones:
+
+
+===================================================================================
+
+CASO 2: ACTIVO NORMAL - VEHÍCULO (TASA 25%)
+-----------------------------------------------------------------------------------
+ID_NUM_ACTIVO: 50909
+Compañía: PIEDRAS NEGRAS
+Tipo: 28500-Cars - New
+Tasa Anual: 25.00% (Vida útil: 4 años)
+Fecha Adquisición: 2000-11-01
+Fecha Inicio Dep: 2000-11-01
+Fecha Fin Dep: 2004-10-01
+Fecha Baja: NULL
+
+Características:
+- Activo totalmente depreciado (25 años)
+- Vehículo nuevo
+- Tasa máxima de depreciación (25%)
+
+Status: Pendiente
+Observaciones:
+
+
+===================================================================================
+
+CASO 3: ACTIVO NORMAL - EDIFICIO RECIENTE (TASA 5%)
+-----------------------------------------------------------------------------------
+ID_NUM_ACTIVO: 70001
+Compañía: PIEDRAS NEGRAS
+Tipo: 28100-Building
+Tasa Anual: 15.00%
+Fecha Adquisición: 2006-05-01
+Fecha Inicio Dep: 2006-05-01
+Fecha Fin Dep: 2012-12-01
+Fecha Baja: NULL
+
+Características:
+- Activo aún en uso (depreciándose)
+- Meses uso al 2024: Aproximadamente 222 meses
+- Debe tener saldo por deducir
+- Reporta en Safe Harbor
+
+Status: Pendiente
+Observaciones:
+
+
+===================================================================================
+
+CASO 4: ACTIVO RECIENTE - MAQUINARIA (TASA 10%)
+-----------------------------------------------------------------------------------
+ID_NUM_ACTIVO: 110380
+Compañía: CIMA
+Tipo: 18145-MAQ. Y EQPO PRODUCCION
+Tasa Anual: 10.00% (Vida útil: 10 años)
+Fecha Adquisición: 2014-05-17
+Fecha Inicio Dep: 2014-12-01
+Fecha Fin Dep: 2024-11-01
+Fecha Baja: NULL
+
+Características:
+- Activo en último año de depreciación (2024)
+- En 2025 ya está totalmente depreciado
+- Meses uso al ejercicio anterior: 121 meses
+- Meses uso en 2025: 12 meses
+- Debe tener saldo mínimo o cero
+
+Status: Pendiente
+Observaciones:
+
+
+===================================================================================
+
+CASO 5: EQUIPO DE CÓMPUTO (TASA 30%)
+-----------------------------------------------------------------------------------
+ID_NUM_ACTIVO: 158224
+Compañía: Compañía Prueba 188
+Tipo: 28500-Computer Equipment
+Tasa Anual: 30.00% (Vida útil: 3.33 años)
+Fecha Adquisición: 2022-01-01
+Fecha Inicio Dep: 2022-02-01
+Fecha Fin Dep: 2025-07-01 (Estimado)
+Fecha Baja: NULL
+
+Características:
+- Equipo de cómputo (tasa más alta, 30%)
+- Aún en depreciación durante 2025
+- Vida útil corta (40 meses aprox)
+- Debe reportar en Safe Harbor
+
+Status: Pendiente
+Observaciones:
+
+
+===================================================================================
+
+CASO 6: MAQUINARIA RECIENTE (TASA 8%)
+-----------------------------------------------------------------------------------
+ID_NUM_ACTIVO: 201213
+Compañía: Compañía Prueba 188
+Tipo: 28500-Machinery & Equipment
+Tasa Anual: 8.00% (Vida útil: 12.5 años)
+Fecha Adquisición: 2022-09-01
+Fecha Inicio Dep: 2022-10-01
+Fecha Fin Dep: 2035-03-01 (Estimado)
+Fecha Baja: NULL
+
+Características:
+- Activo muy reciente (3 años)
+- Tasa baja (8%)
+- Vida útil larga
+- Alto valor en Safe Harbor
+- Meses uso: 28 meses aprox
+
+Status: Pendiente
+Observaciones:
+
+
+===================================================================================
+
+CASO 7: ACTIVO TOTALMENTE DEPRECIADO - ANTIGUO
+-----------------------------------------------------------------------------------
+ID_NUM_ACTIVO: 50893
+Compañía: PIEDRAS NEGRAS
+Tipo: 28100-Building
+Tasa Anual: 5.00%
+Fecha Adquisición: 1999-08-01
+Fecha Inicio Dep: 1999-08-01
+Fecha Fin Dep: 2019-07-01
+Fecha Baja: NULL
+
+Características:
+- Activo completamente depreciado hace más de 5 años
+- No debe reportar valor en Safe Harbor
+- Saldo por deducir = 0
+- MOI ya recuperado 100%
+
+Status: Pendiente
+Observaciones:
+
+
+===================================================================================
+
+PUNTOS DE REVISIÓN CLAVE (PARA TODOS LOS CASOS):
+===================================================================================
+
+A. CÁLCULOS FISCALES (Columnas FI_):
+   1. ✓ INPC Adquisición: Debe corresponder al mes de FECHA_COMPRA
+   2. ✓ INPC Mitad Ejercicio: Debe ser INPC de junio 2025 o mes medio si baja
+   3. ✓ Factor Actualización P1: INPC_Mitad_Ejercicio / INPC_Compra
+   4. ✓ Saldo Actualizado P1: Saldo_Inicio_Año * Factor_P1
+   5. ✓ INPC Mitad Periodo: Mes medio correcto (baja o junio)
+   6. ✓ Factor Actualización P2: INPC_Mitad_Periodo / INPC_Compra
+   7. ✓ Deprec Fiscal Actualizada: Dep_Ejercicio * Factor_P2
+   8. ✓ 50% Deprec Fiscal: Dep_Actualizada * 0.5
+   9. ✓ Valor Promedio: Saldo_Actualizado - 50% Dep
+  10. ✓ Valor Prom. Proporcional: Valor_Promedio * (Meses_Uso_Ejercicio/12)
+
+B. CÁLCULOS SAFE HARBOR (Columnas SH_):
+   1. ✓ INPC Junio: Siempre INPC de junio 2025 (sin mes medio)
+   2. ✓ Factor SH: INPC_Junio / INPC_Compra
+   3. ✓ Saldo SH Actualizado: Saldo_Inicio_Año * Factor_SH
+   4. ✓ Dep SH Actualizada: Dep_Ejercicio * Factor_SH
+   5. ✓ 50% Dep SH: Dep_SH * 0.5
+   6. ✓ Valor SH Promedio: Saldo_SH - 50% Dep_SH
+   7. ✓ Valor SH Proporcional: Valor_SH * (Meses_Uso_Ejercicio/12)
+   8. ✓ Prueba 10% MOI: 10% del MOI original
+   9. ✓ Valor Reportable: MAX(Valor_SH_Proporcional, Prueba_10%)
+  10. ✓ Saldo Fiscal Histórico: Correcto
+  11. ✓ Saldo Fiscal Actualizado: Correcto
+
+C. FECHAS:
+   1. ✓ Fecha Adquisición: Debe estar en Staging_Activo.FECHA_COMPRA
+   2. ✓ Fecha Inicio Depreciación: Calculada correctamente
+   3. ✓ Fecha Fin Depreciación: FECHA_INICIO + (1/Tasa_Mensual - 1) meses
+   4. ✓ Fecha Baja: NULL o fecha válida
+
+D. VALIDACIONES ESPECIALES:
+   1. ✓ Activos depreciados: Valor Reportable debe ser 0 o Prueba 10%
+   2. ✓ Activos nuevos: Proporción correcta por meses de uso
+   3. ✓ INPCs: No deben ser NULL (excepto si hay error documentado)
+   4. ✓ MOI: Debe coincidir con el costo histórico
+   5. ✓ Tasas: 5%, 8%, 10%, 15%, 25%, 30% son válidas
+
+===================================================================================
+FIN DEL DOCUMENTO
+===================================================================================

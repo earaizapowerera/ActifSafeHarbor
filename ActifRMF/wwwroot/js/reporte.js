@@ -498,13 +498,13 @@ function inicializarGridNacionales() {
         },
         // PASO 1: INPC Actualización FISCAL
         {
-            headerName: 'FI_INPC Adquisición',
+            headerName: 'INPC Adquisición',
             field: 'inpcAdquisicion',
             filter: 'agNumberColumnFilter',
-            width: 160,
+            width: 150,
             type: 'numericColumn',
             valueFormatter: params => params.value ? params.value.toFixed(6) : '',
-            cellStyle: {'background-color': '#e7f3ff'}
+            cellStyle: {'background-color': '#fff8dc'}
         },
         {
             headerName: 'FI_INPC Mitad Ejercicio',
@@ -543,15 +543,6 @@ function inicializarGridNacionales() {
             type: 'numericColumn',
             aggFunc: 'sum',
             valueFormatter: params => params.value != null ? params.value.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '',
-            cellStyle: {'background-color': '#fff3cd'}
-        },
-        {
-            headerName: 'FI_INPC Adquisición (P2)',
-            field: 'inpcAdquPaso2',
-            filter: 'agNumberColumnFilter',
-            width: 180,
-            type: 'numericColumn',
-            valueFormatter: params => params.value ? params.value.toFixed(6) : '',
             cellStyle: {'background-color': '#fff3cd'}
         },
         {

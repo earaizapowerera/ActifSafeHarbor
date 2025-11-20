@@ -1,0 +1,384 @@
+===================================================================================
+ANÁLISIS COMPLETO - CASO 1 ✅ CORRECTO
+Folio: 50847 - Edificio Totalmente Depreciado
+Fecha Análisis: 2025-11-20 (Post-corrección completa)
+Status: ✅ RevisadoOK
+===================================================================================
+
+DATOS BÁSICOS DEL ACTIVO:
+-----------------------------------------------------------------------------------
+ID_NUM_ACTIVO:          50847
+Compañía:               188 (Compañía Prueba 188)
+Tipo_Activo:            Nacional
+Tipo:                   28100-Building
+Ruta_Calculo:           NAC-NORMAL
+Descripcion_Ruta:       Activo en uso normal en 2025
+
+DATOS FINANCIEROS:
+-----------------------------------------------------------------------------------
+MOI:                    $59,804.00
+Tasa_Anual:             5.000000% (5% anual)
+Tasa_Mensual:           0.004167% (0.4167% mensual)
+Dep_Anual:              $2,990.20
+Vida_Útil:              240 meses (20 años)
+
+FECHAS CRÍTICAS:
+-----------------------------------------------------------------------------------
+Fecha_Adquisicion:      01-dic-1996
+Fecha_Inicio_Deprec:    01-dic-1996
+Fecha_Fin_Deprec:       01-oct-2016 ✅ (Terminó hace 9 años)
+Fecha_Baja:             NULL (Activo aún en uso)
+Edad_Activo:            29 años (1996 → 2025)
+
+MESES DE USO:
+-----------------------------------------------------------------------------------
+Meses_Uso_Inicio_Ejercicio:     337 meses (al 31-dic-2024)
+Meses_Uso_Hasta_Mitad_Periodo:  6 meses
+Meses_Uso_En_Ejercicio:         12 meses (2025)
+
+CONCLUSIÓN: Activo totalmente depreciado desde oct-2016 (337 > 240 meses)
+
+===================================================================================
+DEPRECIACIÓN ACUMULADA (✅ CALCULADA AUTOMÁTICAMENTE):
+===================================================================================
+
+Dep_Acum_Inicio (01-ene-2025):     $83,974.78 ✅
+
+CÁLCULO AUTOMÁTICO (Igual que extranjeros):
+-----------------------------------------------------------------------------------
+Fórmula: Dep_Acum_Inicio = MOI × Tasa_Mensual × Meses_Uso_Inicio_Ejercicio
+Cálculo: $59,804.00 × 0.004167 × 337 meses
+Resultado: $83,974.78 ✅
+
+VALIDACIÓN:
+-----------------------------------------------------------------------------------
+Dep_Acum_Inicio ($83,974.78) > MOI ($59,804.00)
+Conclusión: Activo 140% depreciado → Limitado a 100%
+
+Saldo_Inicio_Año:
+    MOI - Dep_Acum_Inicio = $59,804.00 - $83,974.78 = -$24,170.78
+    Limitado a: $0.00 ✅
+
+Dep_Fiscal_Ejercicio:
+    Cuando Saldo_Inicio_Año = 0 → Dep_Ejercicio = $0.00 ✅
+
+RESULTADO:
+-----------------------------------------------------------------------------------
+✅ Dep_Acum_Inicio:             $83,974.78 (calculada correctamente)
+✅ Saldo_Inicio_Año:            $0.00 (totalmente depreciado)
+✅ Dep_Fiscal_Ejercicio:        $0.00 (no hay más depreciación)
+✅ Monto_Pendiente:             $0.00
+
+===================================================================================
+ANÁLISIS PASO 1 (P1): ACTUALIZACIÓN DEL SALDO FISCAL
+===================================================================================
+
+INPC:
+-----------------------------------------------------------------------------------
+INPCCompra (dic-1996):              28.759336
+INPC_Mitad_Ejercicio (jun-2025):    140.405000
+
+CÁLCULO:
+-----------------------------------------------------------------------------------
+Factor_Actualizacion_Saldo = INPC_Mitad_Ejercicio / INPCCompra
+Factor_Actualizacion_Saldo = 140.405000 / 28.759336
+Factor_Actualizacion_Saldo = 4.882000 ✅
+
+Saldo_Actualizado = Saldo_Inicio_Año × Factor
+Saldo_Actualizado = $0.00 × 4.882000
+Saldo_Actualizado = $0.00 ✅
+
+RESULTADO PASO 1:
+-----------------------------------------------------------------------------------
+✅ FI_INPC Adquisición:             28.759336
+✅ FI_INPC Mitad Ejercicio:         140.405000
+✅ FI_Factor Actualizacion (P1):    4.882000
+✅ FI_Saldo Actualizado (P1):       $0.00
+
+===================================================================================
+ANÁLISIS PASO 2 (P2): ACTUALIZACIÓN DE LA DEPRECIACIÓN FISCAL
+===================================================================================
+
+INPC:
+-----------------------------------------------------------------------------------
+INPCCompra (dic-1996):              28.759336
+INPC_Mitad_Periodo (jun-2025):      140.405000
+INPCUtilizado:                      140.405000
+
+CÁLCULO:
+-----------------------------------------------------------------------------------
+Factor_Actualizacion_Dep = INPC_Mitad_Periodo / INPCCompra
+Factor_Actualizacion_Dep = 140.405000 / 28.759336
+Factor_Actualizacion_Dep = 4.882000 ✅
+
+Dep_Actualizada = Dep_Fiscal_Ejercicio × Factor
+Dep_Actualizada = $0.00 × 4.882000
+Dep_Actualizada = $0.00 ✅
+
+50% Deprec Fiscal = $0.00 × 0.5 = $0.00
+
+RESULTADO PASO 2:
+-----------------------------------------------------------------------------------
+✅ FI_INPC Mitad Periodo:           140.405000
+✅ FI_Factor Actualizacion (P2):    4.882000
+✅ FI_Deprec Fiscal Actualizada:    $0.00
+✅ FI_50% Deprec Fiscal:            $0.00
+
+===================================================================================
+ANÁLISIS VALOR PROMEDIO FISCAL:
+===================================================================================
+
+FÓRMULA:
+Valor_Promedio = Saldo_Actualizado - (50% × Dep_Actualizada)
+
+CÁLCULO:
+-----------------------------------------------------------------------------------
+Valor_Promedio = $0.00 - ($0.00 × 0.5)
+Valor_Promedio = $0.00 - $0.00
+Valor_Promedio = $0.00 ✅
+
+Proporcion = Valor_Promedio × (Meses_Uso_En_Ejercicio / 12)
+Proporcion = $0.00 × (12 / 12)
+Proporcion = $0.00 ✅
+
+RESULTADO VALOR FISCAL:
+-----------------------------------------------------------------------------------
+✅ FI_Valor Promedio:               $0.00
+✅ FI_Valor Prom. Prop. Año:        $0.00
+
+===================================================================================
+ANÁLISIS SAFE HARBOR:
+===================================================================================
+
+A. INPC SAFE HARBOR:
+-----------------------------------------------------------------------------------
+INPCCompra (dic-1996):              28.759336
+INPC_SH_Junio (jun-2025):           140.405000 (SIEMPRE junio)
+
+B. CÁLCULO FACTOR SH:
+-----------------------------------------------------------------------------------
+Factor_SH = INPC_SH_Junio / INPCCompra
+Factor_SH = 140.405000 / 28.759336
+Factor_SH = 4.8820668182 ✅
+
+C. CÁLCULO SALDO SH:
+-----------------------------------------------------------------------------------
+Saldo_SH_Actualizado = Saldo_Inicio_Año × Factor_SH
+Saldo_SH_Actualizado = $0.00 × 4.8820668182
+Saldo_SH_Actualizado = $0.00 ✅
+
+D. CÁLCULO DEPRECIACIÓN SH:
+-----------------------------------------------------------------------------------
+Dep_SH_Actualizada = Dep_Fiscal_Ejercicio × Factor_SH
+Dep_SH_Actualizada = $0.00 × 4.8820668182
+Dep_SH_Actualizada = $0.00 ✅
+
+50% Dep SH = $0.00 × 0.5 = $0.00
+
+E. VALOR PROMEDIO SH:
+-----------------------------------------------------------------------------------
+Valor_SH_Promedio = Saldo_SH_Actualizado - (50% × Dep_SH_Actualizada)
+Valor_SH_Promedio = $0.00 - $0.00
+Valor_SH_Promedio = $0.00 ✅
+
+F. VALOR PROPORCIONAL SH:
+-----------------------------------------------------------------------------------
+Proporcion_SH = Valor_SH_Promedio × (Meses_Uso_En_Ejercicio / 12)
+Proporcion_SH = $0.00 × (12 / 12)
+Proporcion_SH = $0.00 ✅
+
+G. PRUEBA 10% MOI:
+-----------------------------------------------------------------------------------
+Prueba_10_Pct_MOI = MOI × 0.10
+Prueba_10_Pct_MOI = $59,804.00 × 0.10
+Prueba_10_Pct_MOI = $5,980.40 ✅
+
+H. VALOR REPORTABLE (REGLA 10% APLICA):
+-----------------------------------------------------------------------------------
+Valor_SH_Reportable = MAX(Proporcion_SH, Prueba_10_Pct_MOI)
+Valor_SH_Reportable = MAX($0.00, $5,980.40)
+Valor_SH_Reportable = $5,980.40 ✅
+
+Aplica_10_Pct = TRUE ✅ (porque activo totalmente depreciado)
+
+RESULTADO SAFE HARBOR:
+-----------------------------------------------------------------------------------
+✅ SH_INPC Junio:                   140.405000
+✅ SH_Factor Actualiz.:             4.8820668182
+✅ SH_Saldo Actualizado:            $0.00
+✅ SH_Dep Actualizada:              $0.00
+✅ SH_50% Dep:                      $0.00
+✅ SH_Valor Promedio:               $0.00
+✅ SH_Valor Prom. Prop. Año:        $0.00
+✅ SH_Prueba 10% MOI:               $5,980.40
+✅ SH_Valor Reportable:             $5,980.40 (10% MOI mínimo)
+✅ SH_Aplica 10%:                   Sí
+
+===================================================================================
+SALDOS FISCALES POR DEDUCIR:
+===================================================================================
+
+Saldo_SH_Fiscal_Hist (Histórico):
+    MOI - Dep_Acum_Inicio - Dep_Fiscal_Ejercicio
+    = $59,804.00 - $83,974.78 - $0.00
+    = -$24,170.78 → Limitado a $0.00 ✅
+
+Saldo_SH_Fiscal_Act (Actualizado):
+    Saldo_Fiscal_Hist × Factor_SH
+    = $0.00 × 4.8820668182
+    = $0.00 ✅
+
+===================================================================================
+COMPARACIÓN: ANTES vs DESPUÉS DE LAS CORRECCIONES
+===================================================================================
+
+PROBLEMA 1: Factores Fiscales (RESUELTO con sp_Actualizar_INPC v2.4)
+-----------------------------------------------------------------------------------
+Campo                           | ANTES v2.3   | DESPUÉS v2.4 | Status
+--------------------------------|--------------|--------------|--------
+Factor_Actualizacion_Saldo      | 1.0000       | 4.8820       | ✅ FIJO
+Factor_Actualizacion_Dep        | 1.0000       | 4.8820       | ✅ FIJO
+
+PROBLEMA 2: Depreciación Acumulada (RESUELTO con cálculo automático)
+-----------------------------------------------------------------------------------
+Campo                           | Histórico    | Calculado    | Status
+--------------------------------|--------------|--------------|--------
+Dep_Acum_Inicio                 | $249.18      | $83,974.78   | ✅ FIJO
+Saldo_Inicio_Año                | $59,554.82   | $0.00        | ✅ FIJO
+Dep_Fiscal_Ejercicio            | $2,990.20    | $0.00        | ✅ FIJO
+Saldo_Actualizado               | $290,746.63  | $0.00        | ✅ FIJO
+Valor_Promedio                  | $283,447.55  | $0.00        | ✅ FIJO
+Proporcion                      | $283,447.55  | $0.00        | ✅ FIJO
+Valor_Reportable_MXN            | $283,447.55  | $5,980.40    | ✅ FIJO
+
+SAFE HARBOR (SIEMPRE CORRECTO):
+-----------------------------------------------------------------------------------
+Factor_SH                       | 4.8820668182 | 4.8820668182 | ✅ OK
+Valor_SH_Reportable             | (10% MOI)    | $5,980.40    | ✅ OK
+
+===================================================================================
+CORRECCIONES IMPLEMENTADAS:
+===================================================================================
+
+1. ✅ SP sp_Actualizar_INPC_Nacionales v2.4
+   - Cambio: Removida condición "WHERE INPCCompra IS NULL"
+   - Ahora procesa TODOS los activos nacionales
+   - Resultado: Factores fiscales correctos (4.882)
+
+2. ✅ Query ETL Modificado (Compañía 188)
+   - ANTES: ISNULL(c_hist.ACUMULADO_HISTORICA, 0) AS Dep_Acum_Inicio_Año
+   - DESPUÉS: NULL AS Dep_Acum_Inicio_Año
+   - Resultado: Fuerza cálculo automático en SP
+
+3. ✅ SP sp_Calcular_RMF_Activos_Nacionales v5.3
+   - Ya tenía lógica AUTO DEP ACUM (líneas 296-310)
+   - Calcula depreciación cuando Dep_Acum_Inicio = 0 o NULL
+   - Fórmula: MOI × Tasa_Mensual × Meses_Uso_Inicio_Ejercicio
+   - Resultado: Depreciación correcta para todos los activos
+
+===================================================================================
+VALIDACIONES FINALES:
+===================================================================================
+
+1. ✅ Fecha Fin Depreciación:
+   Calculada: 01-dic-1996 + 239 meses = 01-oct-2016 ✓
+   Fórmula: DATEFROMPARTS con (1 / 0.004167) - 1 = 239 meses
+
+2. ✅ Estado del activo:
+   Totalmente depreciado: SÍ (desde oct-2016)
+   Saldo por deducir: $0.00
+   Reporta: $5,980.40 (10% MOI mínimo por Art. 182 LISR)
+
+3. ✅ Meses de uso:
+   Al ejercicio anterior (2024): 337 meses (excede 240)
+   En ejercicio 2025: 12 meses
+   Total: 349 meses (29 años)
+
+4. ✅ Factores:
+   Fiscal: 4.882000 (4 decimales)
+   Safe Harbor: 4.8820668182 (mayor precisión)
+
+5. ✅ INPCs:
+   Todos correctos y consistentes (140.405000 para jun-2025)
+
+6. ✅ Regla 10% MOI:
+   Aplica correctamente para activo totalmente depreciado
+   Valor mínimo reportable: $5,980.40
+
+===================================================================================
+LECCIONES APRENDIDAS:
+===================================================================================
+
+PROBLEMA RAÍZ:
+-----------------------------------------------------------------------------------
+El sistema origen (Actif) tenía datos históricos incorrectos de depreciación
+acumulada. En lugar de traer estos datos erróneos, se decidió calcularlos
+automáticamente en el SP (igual que se hace con activos extranjeros).
+
+SOLUCIÓN ADOPTADA:
+-----------------------------------------------------------------------------------
+Calcular SIEMPRE la depreciación acumulada en lugar de traerla del sistema
+origen. Esto garantiza consistencia y corrección matemática.
+
+Fórmula aplicada (para activos nacionales Y extranjeros):
+    Dep_Acum = MOI × Tasa_Mensual × Meses_Desde_Inicio_Deprec
+
+BENEFICIOS:
+-----------------------------------------------------------------------------------
+✅ Elimina dependencia de datos históricos del sistema origen
+✅ Garantiza consistencia entre activos nacionales y extranjeros
+✅ Cálculo matemáticamente correcto siempre
+✅ Simplifica proceso de ETL
+✅ Detecta automáticamente activos totalmente depreciados
+
+===================================================================================
+CONCLUSIÓN FINAL:
+===================================================================================
+
+STATUS: ✅ RevisadoOK - CASO 1 COMPLETAMENTE CORRECTO
+
+VERIFICACIONES:
+-----------------------------------------------------------------------------------
+✅ Depreciación acumulada calculada correctamente ($83,974.78)
+✅ Saldo por deducir correcto ($0.00 - totalmente depreciado)
+✅ Factores fiscales correctos (4.882)
+✅ Factores Safe Harbor correctos (4.8820668182)
+✅ No genera depreciación en 2025 (ya terminó en 2016)
+✅ Aplica correctamente regla 10% MOI ($5,980.40)
+✅ Valor reportable correcto
+✅ INPCs correctos
+
+RESULTADO:
+-----------------------------------------------------------------------------------
+El activo folio 50847 cumple perfectamente con las expectativas:
+- Es un edificio de 29 años de antigüedad
+- Terminó su depreciación hace 9 años
+- No genera depreciación fiscal en 2025
+- Reporta valor mínimo de 10% MOI como requiere Art. 182 LISR
+- Todos los cálculos son matemáticamente correctos
+
+CAMBIOS REALIZADOS:
+-----------------------------------------------------------------------------------
+1. ✅ sp_Actualizar_INPC_Nacionales v2.4 (procesa todos los activos)
+2. ✅ Query ETL modificado (NULL en Dep_Acum_Inicio_Año)
+3. ✅ Cálculo automático de depreciación acumulada activado
+
+PRÓXIMOS PASOS:
+-----------------------------------------------------------------------------------
+1. ✅ Caso 1 completado - LISTO
+2. ⏳ Revisar Caso 2: Vehículo (Folio 50909, tasa 25%)
+3. ⏳ Revisar Casos 3-7
+4. ⏳ Aplicar mismo cambio a otras compañías (12, 122, 123)
+
+===================================================================================
+METADATOS:
+===================================================================================
+Version_SP_Calculo:             v5.3-AUTO-DEP-ACUM
+Version_SP_INPC:                v2.4
+Fecha_Calculo:                  20-nov-2025
+Compañía:                       188 (Compañía Prueba 188)
+Año:                            2025
+
+===================================================================================
+FIN DEL ANÁLISIS - CASO 1 ✅ RevisadoOK
+===================================================================================

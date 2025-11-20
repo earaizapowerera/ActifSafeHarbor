@@ -1,0 +1,395 @@
+===================================================================================
+ANÁLISIS COMPLETO - CASO 1
+Folio: 50847 - Edificio
+Fecha Análisis: 2025-11-20 (Post-corrección factores fiscales)
+===================================================================================
+
+DATOS BÁSICOS DEL ACTIVO:
+-----------------------------------------------------------------------------------
+ID_Calculo:             3507
+ID_Staging:             196589
+ID_Compania:            188 (Compañía Prueba 188)
+ID_NUM_ACTIVO:          50847
+Año_Calculo:            2025
+Tipo_Activo:            Nacional
+ID_PAIS:                1 (México)
+Ruta_Calculo:           NAC-NORMAL
+Descripcion_Ruta:       Activo en uso normal en 2025
+
+DATOS FINANCIEROS ORIGINALES:
+-----------------------------------------------------------------------------------
+MOI:                    $59,804.00
+Tasa_Anual:             5.000000% (5% anual)
+Tasa_Mensual:           0.004167% (0.4167% mensual)
+Dep_Anual:              $2,990.20
+Vida_Útil:              240 meses (20 años)
+
+FECHAS CRÍTICAS:
+-----------------------------------------------------------------------------------
+Fecha_Adquisicion:      01-dic-1996
+Fecha_Inicio_Deprec:    01-dic-1996
+Fecha_Fin_Deprec:       01-oct-2016 ✅ (Terminó hace 9 años)
+Fecha_Baja:             NULL (Activo aún en uso)
+Edad_Activo:            29 años (desde 1996 hasta 2025)
+
+MESES DE USO:
+-----------------------------------------------------------------------------------
+Meses_Uso_Inicio_Ejercicio:     337 meses (al 31-dic-2024)
+Meses_Uso_Hasta_Mitad_Periodo:  6 meses
+Meses_Uso_En_Ejercicio:         12 meses (2025)
+
+⚠️ PROBLEMA: Vida útil es 240 meses, pero lleva 337 meses = 97 meses EXTRA
+Conclusión: Activo totalmente depreciado desde oct-2016
+
+===================================================================================
+ANÁLISIS DE DEPRECIACIÓN ACUMULADA (PROBLEMA DETECTADO):
+===================================================================================
+
+Dep_Acum_Inicio (01-ene-2025):     $249.18
+
+⚠️ ERROR EN DATO DE ORIGEN:
+-----------------------------------------------------------------------------------
+Depreciación esperada (si estuviera totalmente depreciado):
+    MOI × 100% = $59,804.00
+
+Depreciación real en BD:
+    $249.18 (solo 0.42% del MOI)
+
+IMPACTO DEL ERROR:
+-----------------------------------------------------------------------------------
+Saldo_Inicio_Año:               $59,554.82 (debería ser $0.00)
+Dep_Fiscal_Ejercicio:           $2,990.20 (debería ser $0.00)
+Monto_Pendiente:                $56,564.62 (debería ser $0.00)
+
+CAUSA RAÍZ:
+-----------------------------------------------------------------------------------
+El sistema origen (Actif) tiene datos históricos incorrectos para este activo.
+La tabla Staging_Activo.Dep_Acum_Inicio_Año contiene $249.18 cuando debería
+contener $59,804.00 (100% depreciado).
+
+CONSECUENCIA:
+-----------------------------------------------------------------------------------
+El sistema continúa depreciando un activo que ya terminó su vida útil hace 9 años.
+
+===================================================================================
+ANÁLISIS PASO 1 (P1): ACTUALIZACIÓN DEL SALDO FISCAL
+===================================================================================
+
+INPC:
+-----------------------------------------------------------------------------------
+INPCCompra (dic-1996):              28.759336
+INPC_Mitad_Ejercicio (jun-2025):    140.405000
+
+CÁLCULO:
+-----------------------------------------------------------------------------------
+Factor_Actualizacion_Saldo = INPC_Mitad_Ejercicio / INPCCompra
+Factor_Actualizacion_Saldo = 140.405000 / 28.759336
+Factor_Actualizacion_Saldo = 4.882000 ✅ CORRECTO
+
+Saldo_Actualizado = Saldo_Inicio_Año × Factor
+Saldo_Actualizado = $59,554.82 × 4.882000
+Saldo_Actualizado = $290,746.63 ✅ CORRECTO
+
+RESULTADO PASO 1:
+-----------------------------------------------------------------------------------
+✅ FI_INPC Adquisición:             28.759336
+✅ FI_INPC Mitad Ejercicio:         140.405000
+✅ FI_Factor Actualizacion (P1):    4.882000
+✅ FI_Saldo Actualizado (P1):       $290,746.63
+
+===================================================================================
+ANÁLISIS PASO 2 (P2): ACTUALIZACIÓN DE LA DEPRECIACIÓN FISCAL
+===================================================================================
+
+INPC:
+-----------------------------------------------------------------------------------
+INPCCompra (dic-1996):              28.759336
+INPC_Mitad_Periodo (jun-2025):      140.405000
+INPCUtilizado:                      140.405000
+
+CÁLCULO:
+-----------------------------------------------------------------------------------
+Factor_Actualizacion_Dep = INPC_Mitad_Periodo / INPCCompra
+Factor_Actualizacion_Dep = 140.405000 / 28.759336
+Factor_Actualizacion_Dep = 4.882000 ✅ CORRECTO
+
+Dep_Actualizada = Dep_Fiscal_Ejercicio × Factor
+Dep_Actualizada = $2,990.20 × 4.882000
+Dep_Actualizada = $14,598.16 ✅ CORRECTO
+
+50% Deprec Fiscal = $14,598.16 × 0.5 = $7,299.08
+
+RESULTADO PASO 2:
+-----------------------------------------------------------------------------------
+✅ FI_INPC Mitad Periodo:           140.405000
+✅ FI_Factor Actualizacion (P2):    4.882000
+✅ FI_Deprec Fiscal Actualizada:    $14,598.16
+✅ FI_50% Deprec Fiscal:            $7,299.08
+
+===================================================================================
+ANÁLISIS VALOR PROMEDIO FISCAL:
+===================================================================================
+
+FÓRMULA:
+Valor_Promedio = Saldo_Actualizado - (50% × Dep_Actualizada)
+
+CÁLCULO:
+-----------------------------------------------------------------------------------
+Valor_Promedio = $290,746.63 - ($14,598.16 × 0.5)
+Valor_Promedio = $290,746.63 - $7,299.08
+Valor_Promedio = $283,447.55 ✅ CORRECTO
+
+Proporcion = Valor_Promedio × (Meses_Uso_En_Ejercicio / 12)
+Proporcion = $283,447.55 × (12 / 12)
+Proporcion = $283,447.55 × 1.0
+Proporcion = $283,447.55 ✅ CORRECTO
+
+RESULTADO VALOR FISCAL:
+-----------------------------------------------------------------------------------
+✅ FI_Valor Promedio:               $283,447.55
+✅ FI_Valor Prom. Prop. Año:        $283,447.55
+
+===================================================================================
+ANÁLISIS SAFE HARBOR:
+===================================================================================
+
+A. INPC SAFE HARBOR:
+-----------------------------------------------------------------------------------
+INPCCompra (dic-1996):              28.759336
+INPC_SH_Junio (jun-2025):           140.405000 (SIEMPRE junio, sin mes medio)
+
+B. CÁLCULO FACTOR SH:
+-----------------------------------------------------------------------------------
+Factor_SH = INPC_SH_Junio / INPCCompra
+Factor_SH = 140.405000 / 28.759336
+Factor_SH = 4.8820668182 ✅ CORRECTO (mayor precisión)
+
+C. CÁLCULO SALDO SH:
+-----------------------------------------------------------------------------------
+Saldo_SH_Actualizado = Saldo_Inicio_Año × Factor_SH
+Saldo_SH_Actualizado = $59,554.82 × 4.8820668182
+Saldo_SH_Actualizado = $290,750.61 ✅ CORRECTO
+
+D. CÁLCULO DEPRECIACIÓN SH:
+-----------------------------------------------------------------------------------
+Dep_SH_Actualizada = Dep_Fiscal_Ejercicio × Factor_SH
+Dep_SH_Actualizada = $2,990.20 × 4.8820668182
+Dep_SH_Actualizada = $14,598.36 ✅ CORRECTO
+
+50% Dep SH = $14,598.36 × 0.5 = $7,299.18
+
+E. VALOR PROMEDIO SH:
+-----------------------------------------------------------------------------------
+Valor_SH_Promedio = Saldo_SH_Actualizado - (50% × Dep_SH_Actualizada)
+Valor_SH_Promedio = $290,750.61 - $7,299.18
+Valor_SH_Promedio = $283,451.43 ✅ CORRECTO
+
+F. VALOR PROPORCIONAL SH:
+-----------------------------------------------------------------------------------
+Proporcion_SH = Valor_SH_Promedio × (Meses_Uso_En_Ejercicio / 12)
+Proporcion_SH = $283,451.43 × (12 / 12)
+Proporcion_SH = $283,451.43 ✅ CORRECTO
+
+G. PRUEBA 10% MOI:
+-----------------------------------------------------------------------------------
+Prueba_10_Pct_MOI = MOI × 0.10
+Prueba_10_Pct_MOI = $59,804.00 × 0.10
+Prueba_10_Pct_MOI = $5,980.40 ✅ CORRECTO
+
+H. VALOR REPORTABLE:
+-----------------------------------------------------------------------------------
+Valor_SH_Reportable = MAX(Proporcion_SH, Prueba_10_Pct_MOI)
+Valor_SH_Reportable = MAX($283,451.43, $5,980.40)
+Valor_SH_Reportable = $283,451.43 ✅ CORRECTO
+
+Aplica_10_Pct = False ✅ (porque Proporcion_SH > Prueba_10%)
+
+RESULTADO SAFE HARBOR:
+-----------------------------------------------------------------------------------
+✅ SH_INPC Junio:                   140.405000
+✅ SH_Factor Actualiz.:             4.8820668182
+✅ SH_Saldo Actualizado:            $290,750.61
+✅ SH_Dep Actualizada:              $14,598.36
+✅ SH_50% Dep:                      $7,299.18
+✅ SH_Valor Promedio:               $283,451.43
+✅ SH_Valor Prom. Prop. Año:        $283,451.43
+✅ SH_Prueba 10% MOI:               $5,980.40
+✅ SH_Valor Reportable:             $283,451.43
+✅ SH_Aplica 10%:                   No
+
+===================================================================================
+SALDOS FISCALES POR DEDUCIR:
+===================================================================================
+
+Saldo_SH_Fiscal_Hist (Histórico):
+    MOI - Dep_Acum_Inicio - Dep_Fiscal_Ejercicio
+    = $59,804.00 - $249.18 - $2,990.20
+    = $56,564.62 ✅ CORRECTO
+
+Saldo_SH_Fiscal_Act (Actualizado):
+    Saldo_Fiscal_Hist × Factor_SH
+    = $56,564.62 × 4.8820668182
+    = $276,152.25 ✅ CORRECTO
+
+===================================================================================
+VALIDACIONES ESPECIALES:
+===================================================================================
+
+1. ✅ Fecha Fin Depreciación:
+   Calculada: 01-dic-1996 + 239 meses = 01-oct-2016 ✓
+   Fórmula: DATEFROMPARTS con (1 / 0.004167) - 1 = 240 - 1 = 239 meses
+   Día: Siempre día 01 del mes final
+
+2. ⚠️ Estado del activo:
+   Totalmente depreciado: SÍ (desde oct-2016)
+   Reporta valor: SÍ ($283,451.43)
+   PROBLEMA: Dep_Acum_Inicio está mal en sistema origen
+
+3. ✅ Meses de uso:
+   Al ejercicio anterior (2024): 337 meses (excede 240)
+   En ejercicio 2025: 12 meses
+   Total desde adquisición: 349 meses (29 años)
+
+4. ✅ Factores fiscales:
+   ANTES (v2.3): Factor = 1.0 ❌ (placeholder)
+   DESPUÉS (v2.4): Factor = 4.882 ✅ (correcto)
+
+5. ✅ INPCs utilizados:
+   Fiscal P1: INPC Mitad Ejercicio = 140.405000 (junio 2025)
+   Fiscal P2: INPC Mitad Periodo = 140.405000 (junio 2025)
+   Safe Harbor: INPC Junio = 140.405000 (junio 2025)
+
+   NOTA: En este caso son iguales porque el activo estuvo todo el año.
+
+6. ✅ Diferencia entre Fiscal y Safe Harbor:
+   Factor Fiscal:      4.882000 (redondeado a 4 decimales)
+   Factor Safe Harbor: 4.8820668182 (mayor precisión)
+
+   Diferencia en resultados finales: $3.88 ($283,451.43 - $283,447.55)
+   Esta diferencia se debe a mayor precisión en cálculos SH.
+
+===================================================================================
+COMPARACIÓN ANTES vs DESPUÉS DE LA CORRECCIÓN:
+===================================================================================
+
+FACTORES FISCALES:
+-----------------------------------------------------------------------------------
+Campo                           | ANTES (v2.3) | DESPUÉS (v2.4) | Status
+--------------------------------|--------------|----------------|--------
+Factor_Actualizacion_Saldo      | 1.0000       | 4.8820         | ✅ FIJO
+Factor_Actualizacion_Dep        | 1.0000       | 4.8820         | ✅ FIJO
+Saldo_Actualizado               | $59,554.82   | $290,746.63    | ✅ FIJO
+Dep_Actualizada                 | $2,990.20    | $14,598.16     | ✅ FIJO
+Valor_Promedio                  | $58,059.72   | $283,447.55    | ✅ FIJO
+Proporcion                      | $58,059.72   | $283,447.55    | ✅ FIJO
+Valor_Reportable_MXN            | $58,059.72   | $283,447.55    | ✅ FIJO
+
+SAFE HARBOR (NO CAMBIÓ - YA ESTABA CORRECTO):
+-----------------------------------------------------------------------------------
+Factor_SH                       | 4.8820668182 | 4.8820668182   | ✅ OK
+Saldo_SH_Actualizado            | $290,750.61  | $290,750.61    | ✅ OK
+Valor_SH_Reportable             | $283,451.43  | $283,451.43    | ✅ OK
+
+===================================================================================
+CAUSA RAÍZ DEL ERROR Y SOLUCIÓN:
+===================================================================================
+
+PROBLEMA ORIGINAL:
+-----------------------------------------------------------------------------------
+sp_Actualizar_INPC_Nacionales v2.3 tenía la condición:
+
+    WHERE INPCCompra IS NULL  -- ❌ Solo procesaba registros sin INPC
+
+Como sp_Calcular_RMF_Activos_Nacionales ya poblaba INPCCompra desde INPC2,
+el SP de actualización NO procesaba ningún registro, dejando factores en 1.0.
+
+SOLUCIÓN IMPLEMENTADA:
+-----------------------------------------------------------------------------------
+sp_Actualizar_INPC_Nacionales v2.4:
+
+    WHERE ID_Compania = @ID_Compania
+      AND Año_Calculo = @Año_Calculo
+      AND Tipo_Activo = 'Nacional';  -- ✅ Procesa TODOS
+
+Cambio: Removida condición "AND INPCCompra IS NULL"
+
+RESULTADO:
+-----------------------------------------------------------------------------------
+✅ SP v2.4 desplegado exitosamente
+✅ 8 activos procesados (Compañía 188, Año 2025)
+✅ 0 errores encontrados
+✅ Factores fiscales actualizados correctamente
+✅ Valores finales correctos
+
+===================================================================================
+PROBLEMA PENDIENTE (NO RELACIONADO CON FACTORES):
+===================================================================================
+
+DATO INCORRECTO EN SISTEMA ORIGEN:
+-----------------------------------------------------------------------------------
+Campo:                  Dep_Acum_Inicio_Año
+Valor actual:           $249.18
+Valor esperado:         $59,804.00 (100% depreciado)
+Fuente:                 Staging_Activo (importado de sistema Actif origen)
+
+IMPACTO:
+-----------------------------------------------------------------------------------
+⚠️ El sistema continúa calculando depreciación para un activo que terminó
+   su vida útil hace 9 años (oct-2016).
+
+⚠️ Los cálculos son matemáticamente correctos DADO el dato de entrada erróneo,
+   pero conceptualmente el activo NO debería estar depreciándose.
+
+RECOMENDACIÓN:
+-----------------------------------------------------------------------------------
+1. Investigar por qué Dep_Acum_Inicio_Año está en $249.18 en sistema origen
+2. Corregir dato histórico en sistema Actif (si aplica)
+3. O documentar que este activo específico tiene histórico incorrecto
+4. Re-ejecutar ETL + Cálculo después de corrección
+
+NOTA IMPORTANTE:
+-----------------------------------------------------------------------------------
+Este problema es INDEPENDIENTE de la corrección de factores. Los factores
+ahora están correctos. El problema de datos históricos debe resolverse en
+el sistema origen (Actif) o documentarse como excepción conocida.
+
+===================================================================================
+CONCLUSIÓN FINAL:
+===================================================================================
+
+STATUS: ✅ CÁLCULOS CORRECTOS (post v2.4)
+
+VERIFICACIONES:
+-----------------------------------------------------------------------------------
+✅ Factores fiscales corregidos (4.882 en lugar de 1.0)
+✅ Saldos actualizados correctamente
+✅ Depreciaciones actualizadas correctamente
+✅ Valores promedio correctos
+✅ Safe Harbor correcto desde el inicio
+✅ Prueba 10% MOI aplicada correctamente
+✅ INPCs obtenidos correctamente
+
+ADVERTENCIAS:
+-----------------------------------------------------------------------------------
+⚠️ Dep_Acum_Inicio_Año es incorrecto en sistema origen ($249.18 vs $59,804.00)
+⚠️ Activo continúa depreciándose después de terminar vida útil (problema de datos)
+⚠️ Este problema debe resolverse en sistema origen o documentarse
+
+PRÓXIMOS PASOS:
+-----------------------------------------------------------------------------------
+1. ✅ Factores corregidos - COMPLETADO
+2. ⏳ Investigar dato histórico de Dep_Acum_Inicio en sistema Actif
+3. ⏳ Revisar casos de uso 2-7 (CASOS_USO_NACIONALES_2025.txt)
+4. ⏳ Marcar caso 1 como "RevisadoOK" con advertencia de datos históricos
+
+===================================================================================
+METADATOS DEL CÁLCULO:
+===================================================================================
+Version_SP:                     v5.3-AUTO-DEP-ACUM
+Fecha_Calculo:                  20/11/2025 1:25:40 PM
+Lote_Calculo:                   (vacío)
+INPC Actualización SP:          sp_Actualizar_INPC_Nacionales v2.4
+
+===================================================================================
+FIN DEL ANÁLISIS COMPLETO - CASO 1
+===================================================================================

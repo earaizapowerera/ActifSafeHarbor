@@ -1,0 +1,204 @@
+===================================================================================
+REVISIÓN DETALLADA - CASO 1
+Folio: 50847 - Edificio PIEDRAS NEGRAS
+Fecha: 2025-11-20
+===================================================================================
+
+DATOS DEL ACTIVO:
+-----------------------------------------------------------------------------------
+ID_NUM_ACTIVO: 50847
+Compañía: PIEDRAS NEGRAS
+Tipo: 28100-Building
+Tasa Anual: 5.00%
+Tasa Mensual: 0.416667% (5% / 12)
+Vida Útil: 240 meses (20 años)
+
+FECHAS:
+Fecha Adquisición: 1996-12-01
+Fecha Inicio Dep: 1996-12-01
+Fecha Fin Dep: 2016-11-01 (calculada: 1996-12-01 + 239 meses)
+Fecha Baja: NULL
+Año de Cálculo: 2025
+
+MOI (Costo Original): $XXX,XXX.XX (por verificar en sistema)
+
+===================================================================================
+ANÁLISIS PRELIMINAR:
+===================================================================================
+
+1. EDAD DEL ACTIVO:
+   Desde: dic-1996
+   Hasta: dic-2024 (fin del ejercicio anterior)
+   Total: 28 años = 336 meses
+
+2. DEPRECIACIÓN COMPLETA:
+   Vida útil: 240 meses (20 años)
+   Meses transcurridos: 336 meses
+   Estado: ✅ TOTALMENTE DEPRECIADO desde nov-2016
+   Tiempo depreciado: 28 - 20 = 8 años después de fin de vida útil
+
+3. EXPECTATIVA DE CÁLCULO:
+   ✅ Saldo por deducir al 01-ene-2025: $0.00
+   ✅ Depreciación fiscal 2025: $0.00
+   ✅ Valor Fiscal Promedio: $0.00
+   ✅ Valor Safe Harbor Reportable: $0.00 (o 10% MOI si aplica regla mínima)
+
+===================================================================================
+REVISIÓN PASO 1 (P1): ACTUALIZACIÓN DEL SALDO
+===================================================================================
+
+A. DATOS DE ENTRADA:
+   - Saldo_Inicio_Año (01-ene-2025): $0.00 ✅
+     Razón: Activo totalmente depreciado desde 2016
+
+B. INPC:
+   - INPC_Adquisición (dic-1996): ~42.XXX (verificar)
+   - INPC_Mitad_Ejercicio (jun-2025): 140.405 (verificar)
+
+C. CÁLCULO:
+   Factor_P1 = INPC_Mitad_Ejercicio / INPC_Adquisición
+   Factor_P1 = 140.405 / 42.XXX = ~3.33 (verificar)
+
+   Saldo_Actualizado_P1 = $0.00 × 3.33 = $0.00 ✅
+
+D. RESULTADO ESPERADO:
+   ✅ FI_Factor Actualiz. (P1): ~3.33
+   ✅ FI_Saldo Actualizado (P1): $0.00
+
+===================================================================================
+REVISIÓN PASO 2 (P2): ACTUALIZACIÓN DE LA DEPRECIACIÓN
+===================================================================================
+
+A. DATOS DE ENTRADA:
+   - Depreciación_Fiscal_2025: $0.00 ✅
+     Razón: No hay más depreciación (ya terminó en 2016)
+   - Meses_Uso_En_Ejercicio: 0 meses ✅
+     Razón: Ya no se deprecia
+
+B. INPC:
+   - INPC_Adquisición (dic-1996): ~42.XXX
+   - INPC_Mitad_Periodo (jun-2025): 140.405
+
+C. CÁLCULO:
+   Factor_P2 = INPC_Mitad_Periodo / INPC_Adquisición
+   Factor_P2 = 140.405 / 42.XXX = ~3.33
+
+   Dep_Fiscal_Actualizada = $0.00 × 3.33 = $0.00 ✅
+
+D. RESULTADO ESPERADO:
+   ✅ FI_INPC Mitad Periodo: 140.405
+   ✅ FI_Factor Actualiz. (P2): ~3.33
+   ✅ FI_Deprec Fiscal Actualizada: $0.00
+   ✅ FI_50% Deprec Fiscal: $0.00
+
+===================================================================================
+REVISIÓN VALOR PROMEDIO FISCAL:
+===================================================================================
+
+Fórmula: Valor_Promedio = Saldo_Actualizado - (50% × Dep_Actualizada)
+
+Cálculo:
+Valor_Promedio = $0.00 - ($0.00 × 0.5)
+Valor_Promedio = $0.00 - $0.00 = $0.00 ✅
+
+Proporción (12/12 meses): $0.00 × 1.0 = $0.00 ✅
+
+RESULTADO ESPERADO:
+✅ FI_Valor Promedio: $0.00
+✅ FI_Valor Prom. Prop. Año: $0.00
+
+===================================================================================
+REVISIÓN SAFE HARBOR:
+===================================================================================
+
+A. INPC SAFE HARBOR:
+   - INPC_Adquisición: ~42.XXX (mismo que fiscal)
+   - SH_INPC Junio: 140.405 (SIEMPRE junio, sin mes medio)
+
+B. CÁLCULO SALDO SH:
+   Factor_SH = 140.405 / 42.XXX = ~3.33
+
+   Saldo_SH_Actualizado = $0.00 × 3.33 = $0.00 ✅
+
+C. CÁLCULO DEPRECIACIÓN SH:
+   Dep_SH_Actualizada = $0.00 × 3.33 = $0.00 ✅
+
+D. VALOR PROMEDIO SH:
+   Valor_SH_Promedio = $0.00 - ($0.00 × 0.5) = $0.00 ✅
+
+E. VALOR PROPORCIONAL SH:
+   Meses_Uso = 0 (ya no deprecia)
+   Proporción_SH = $0.00 × (0/12) = $0.00 ✅
+
+F. PRUEBA 10% MOI:
+   Prueba_10% = MOI × 0.10 = $XXX.XX (verificar MOI)
+
+G. VALOR REPORTABLE:
+   Valor_Reportable = MAX(Valor_SH_Proporcional, Prueba_10%)
+   Valor_Reportable = MAX($0.00, $XXX.XX)
+
+   ⚠️ CASO ESPECIAL: Si el activo está totalmente depreciado,
+   la regla del 10% podría NO aplicar. Verificar interpretación legal.
+
+RESULTADOS ESPERADOS:
+✅ SH_INPC Junio: 140.405
+✅ SH_Factor Actualiz.: ~3.33
+✅ SH_Saldo Actualizado: $0.00
+✅ SH_Dep Actualizada: $0.00
+✅ SH_50% Dep: $0.00
+✅ SH_Valor Promedio: $0.00
+✅ SH_Valor Prom. Prop. Año: $0.00
+⚠️ SH_Prueba 10% MOI: Por verificar con MOI
+⚠️ SH_Valor Reportable: $0.00 o 10% MOI (por confirmar regla)
+
+===================================================================================
+VALIDACIONES ESPECIALES:
+===================================================================================
+
+1. ✅ Fecha Fin Depreciación:
+   Calculada: 1996-12-01 + 239 meses = 2016-11-01 ✓
+   Fórmula: DATEFROMPARTS(YEAR + meses, MONTH, 1)
+   Meses = (1 / 0.00416667) - 1 = 240 - 1 = 239 meses
+
+2. ✅ Estado del activo:
+   Totalmente depreciado: SÍ (desde 2016)
+   Debe reportar: NO (salvo regla 10% MOI)
+
+3. ✅ Meses de uso:
+   Al ejercicio anterior (2024): 240 meses (máximo)
+   En ejercicio 2025: 0 meses
+
+4. ✅ Saldos fiscales:
+   Histórico: $0.00
+   Actualizado: $0.00
+
+===================================================================================
+PUNTOS DE VERIFICACIÓN EN EL SISTEMA:
+===================================================================================
+
+1. Verificar MOI original del activo
+2. Confirmar INPC dic-1996 (mes de adquisición)
+3. Confirmar si regla 10% MOI aplica a activos totalmente depreciados
+4. Verificar que todos los campos de depreciación estén en $0.00
+5. Verificar que factores sean consistentes (~3.33)
+
+===================================================================================
+STATUS: REVISIÓN TEÓRICA COMPLETADA
+===================================================================================
+
+RESULTADO PRELIMINAR: ✅ CÁLCULOS CORRECTOS (bajo supuesto teórico)
+
+ADVERTENCIAS:
+- ⚠️ Se necesita verificar MOI para completar revisión
+- ⚠️ Confirmar interpretación de regla 10% MOI para activos depreciados
+- ⚠️ Reconectar a base de datos para validar valores reales
+
+PRÓXIMOS PASOS:
+1. Reconectar a SQL Server
+2. Obtener datos reales del folio 50847
+3. Comparar con valores esperados
+4. Actualizar status a "RevisadoOK" o documentar errores
+
+===================================================================================
+FIN DE REVISIÓN TEÓRICA
+===================================================================================

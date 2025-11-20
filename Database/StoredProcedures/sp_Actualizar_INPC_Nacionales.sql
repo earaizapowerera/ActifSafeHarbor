@@ -1,6 +1,6 @@
 -- =============================================
 -- Stored Procedure: sp_Actualizar_INPC_Nacionales
--- Versión: 2.0
+-- Versión: 2.4
 -- Descripción: Actualiza INPCCompra e INPCUtilizado en Calculo_RMF
 --              según la lógica fiscal del SAT
 --
@@ -8,6 +8,11 @@
 -- y ANTES de generar el reporte final
 --
 -- Basado en: usp_CalculoINPCActivo del sistema Actif legacy
+--
+-- v2.3: Usa FECHA_FIN_DEPREC, implementa lógica de 2 años con
+--       tablas inpcdeprec e INPCbajas según algoritmo original
+-- v2.4: Procesa TODOS los activos (no solo INPCCompra IS NULL)
+--       Fix: sp_Calcular ya puebla INPCCompra pero deja factores en 1.0
 -- =============================================
 
 USE Actif_RMF;
@@ -49,8 +54,9 @@ BEGIN
     -- ================================================
     DECLARE @ID_Calculo BIGINT,
             @Fecha_Compra DATE,
-            @Fecha_Baja DATE,
             @FECHA_INICIO_DEP DATE,
+            @Fecha_Fin_Deprec DATE,
+            @Fecha_Baja DATE,
             @MOI DECIMAL(18,4),
             @Saldo_Inicio_Año DECIMAL(18,4),
             @Dep_Fiscal_Ejercicio DECIMAL(18,4),
@@ -62,6 +68,8 @@ BEGIN
     SELECT
         ID_Calculo,
         Fecha_Adquisicion,
+        Fecha_Inicio_Depreciacion,
+        Fecha_Fin_Depreciacion,
         Fecha_Baja,
         MOI,
         Saldo_Inicio_Año,
@@ -71,12 +79,13 @@ BEGIN
     FROM Calculo_RMF
     WHERE ID_Compania = @ID_Compania
       AND Año_Calculo = @Año_Calculo
-      AND Tipo_Activo = 'Nacional'
-      AND INPCCompra IS NULL;  -- Solo los que no tienen INPC calculado
+      AND Tipo_Activo = 'Nacional';
+      -- Cambio v2.4: Procesar TODOS los activos, no solo los que tienen INPCCompra NULL
+      -- El SP sp_Calcular_RMF_Activos_Nacionales ya puebla INPCCompra, pero deja factores en 1.0
 
     OPEN cursor_activos;
-    FETCH NEXT FROM cursor_activos INTO @ID_Calculo, @Fecha_Compra, @Fecha_Baja, @MOI,
-                                         @Saldo_Inicio_Año, @Dep_Fiscal_Ejercicio,
+    FETCH NEXT FROM cursor_activos INTO @ID_Calculo, @Fecha_Compra, @FECHA_INICIO_DEP, @Fecha_Fin_Deprec,
+                                         @Fecha_Baja, @MOI, @Saldo_Inicio_Año, @Dep_Fiscal_Ejercicio,
                                          @Meses_Uso_En_Ejercicio, @Dep_Acum_Inicio;
 
     WHILE @@FETCH_STATUS = 0
@@ -109,43 +118,56 @@ BEGIN
         -- ==================================================
 
         -- CASO 1: Antes de iniciar depreciación
-        IF @Año_Calculo < YEAR(@Fecha_Compra)
-           OR (@Año_Calculo = YEAR(@Fecha_Compra) AND 12 <= MONTH(@Fecha_Compra))
+        IF @Año_Calculo < YEAR(@FECHA_INICIO_DEP)
+           OR (@Año_Calculo = YEAR(@FECHA_INICIO_DEP) AND 12 <= MONTH(@FECHA_INICIO_DEP))
         BEGIN
             SET @INPC_Utilizado = @INPC_Compra;
             SET @Factor = 1.0;
             SET @PasoINPC = 'inic';
         END
         -- CASO 2: Completamente depreciado
-        ELSE IF ABS(@MOI - @Dep_Acum_Inicio) < 1
+        ELSE IF ABS(@MOI - @Dep_Acum_Inicio) < 1 AND @Fecha_Fin_Deprec IS NOT NULL
         BEGIN
-            -- Calcular fecha de fin de depreciación (necesitamos este dato)
-            -- Por simplicidad, usamos la lógica de bajas si está dado de baja
-            -- Si no, usamos mes medio del año de cálculo (junio)
             DECLARE @Mes_INPC_Utilizado INT;
             DECLARE @Año_INPC_Utilizado INT;
+            DECLARE @Años_Desde_Fin_Deprec INT = YEAR(CAST(CAST(@Año_Calculo AS VARCHAR(4)) + '-12-31' AS DATE)) - YEAR(@Fecha_Fin_Deprec);
 
-            IF @Fecha_Baja IS NOT NULL
+            -- Verificar si tiene menos de 2 años desde que terminó de depreciarse
+            IF @Años_Desde_Fin_Deprec < 2 AND (@Fecha_Baja IS NULL OR @Fecha_Baja > @Fecha_Fin_Deprec)
             BEGIN
-                -- Usar mes anterior a la baja
-                SET @Año_INPC_Utilizado = YEAR(DATEADD(MONTH, -1, @Fecha_Baja));
-                SET @Mes_INPC_Utilizado = MONTH(DATEADD(MONTH, -1, @Fecha_Baja));
-                SET @PasoINPC = 'DepreciadoMesBaja';
+                -- Usar tabla inpcdeprec con mes medio
+                DECLARE @Id_Mes_INPC_Deprec INT;
+                DECLARE @Año_INPC_Deprec INT;
+
+                SELECT @Año_INPC_Deprec = YEAR(@Fecha_Fin_Deprec) + AñoINPC,
+                       @Id_Mes_INPC_Deprec = Id_Mes_INPC
+                FROM dbo.inpcdeprec
+                WHERE Id_Mes_Fin_Deprec = MONTH(@Fecha_Fin_Deprec);
+
+                IF @Año_INPC_Deprec IS NOT NULL AND @Id_Mes_INPC_Deprec IS NOT NULL
+                BEGIN
+                    SELECT @INPC_Utilizado = Indice
+                    FROM dbo.INPC2
+                    WHERE Anio = @Año_INPC_Deprec
+                      AND Mes = @Id_Mes_INPC_Deprec
+                      AND Id_Pais = 1
+                      AND Id_Grupo_Simulacion = @Id_Grupo_Simulacion;
+
+                    SET @PasoINPC = 'DeprecMesMedio';
+                END
             END
             ELSE
             BEGIN
-                -- Usar junio del año de cálculo como mes medio
-                SET @Año_INPC_Utilizado = @Año_Calculo;
-                SET @Mes_INPC_Utilizado = 6;
-                SET @PasoINPC = 'DepreciadoMesMedio';
-            END
+                -- Más de 2 años: usar mes de fin de depreciación directo
+                SELECT @INPC_Utilizado = Indice
+                FROM dbo.INPC2
+                WHERE Mes = MONTH(@Fecha_Fin_Deprec)
+                  AND Anio = YEAR(@Fecha_Fin_Deprec)
+                  AND Id_Pais = 1
+                  AND Id_Grupo_Simulacion = @Id_Grupo_Simulacion;
 
-            SELECT @INPC_Utilizado = Indice
-            FROM dbo.INPC2
-            WHERE Mes = @Mes_INPC_Utilizado
-              AND Anio = @Año_INPC_Utilizado
-              AND Id_Pais = 1
-              AND Id_Grupo_Simulacion = @Id_Grupo_Simulacion;
+                SET @PasoINPC = 'DepreciadoMesFin';
+            END
 
             IF @INPC_Utilizado IS NOT NULL
             BEGIN
@@ -159,25 +181,30 @@ BEGIN
             DECLARE @Mes_Anterior_Baja INT = MONTH(DATEADD(MONTH, -1, @Fecha_Baja));
             DECLARE @Año_Baja_INPC INT;
             DECLARE @Id_MesINPC INT;
+            DECLARE @Años_Desde_Baja INT = YEAR(CAST(CAST(@Año_Calculo AS VARCHAR(4)) + '-12-31' AS DATE)) - YEAR(@Fecha_Baja);
 
-            -- Buscar en tabla INPCbajas
-            SELECT @Año_Baja_INPC = YEAR(DATEADD(MONTH, -1, @Fecha_Baja)) + AñoINPC,
-                   @Id_MesINPC = Id_MesINPC
-            FROM dbo.INPCbajas
-            WHERE Id_Mes = @Mes_Anterior_Baja;
-
-            IF @Año_Baja_INPC IS NOT NULL AND @Id_MesINPC IS NOT NULL
+            -- Verificar si tiene menos de 2 años desde la baja
+            IF @Años_Desde_Baja < 2
             BEGIN
-                SELECT @INPC_Utilizado = Indice
-                FROM dbo.INPC2
-                WHERE Anio = @Año_Baja_INPC
-                  AND Mes = @Id_MesINPC
-                  AND Id_Pais = 1
-                  AND Id_Grupo_Simulacion = @Id_Grupo_Simulacion;
+                -- Buscar en tabla INPCbajas con mes medio
+                SELECT @Año_Baja_INPC = YEAR(DATEADD(MONTH, -1, @Fecha_Baja)) + AñoINPC,
+                       @Id_MesINPC = Id_MesINPC
+                FROM dbo.INPCbajas
+                WHERE Id_Mes = @Mes_Anterior_Baja;
+
+                IF @Año_Baja_INPC IS NOT NULL AND @Id_MesINPC IS NOT NULL
+                BEGIN
+                    SELECT @INPC_Utilizado = Indice
+                    FROM dbo.INPC2
+                    WHERE Anio = @Año_Baja_INPC
+                      AND Mes = @Id_MesINPC
+                      AND Id_Pais = 1
+                      AND Id_Grupo_Simulacion = @Id_Grupo_Simulacion;
+                END
             END
             ELSE
             BEGIN
-                -- Si no hay en tabla, usar mes anterior directamente
+                -- Más de 2 años: usar mes anterior a la baja directamente
                 SELECT @INPC_Utilizado = Indice
                 FROM dbo.INPC2
                 WHERE Mes = @Mes_Anterior_Baja
@@ -259,8 +286,8 @@ BEGIN
         END
 
 NextRecord:
-        FETCH NEXT FROM cursor_activos INTO @ID_Calculo, @Fecha_Compra, @Fecha_Baja, @MOI,
-                                             @Saldo_Inicio_Año, @Dep_Fiscal_Ejercicio,
+        FETCH NEXT FROM cursor_activos INTO @ID_Calculo, @Fecha_Compra, @FECHA_INICIO_DEP, @Fecha_Fin_Deprec,
+                                             @Fecha_Baja, @MOI, @Saldo_Inicio_Año, @Dep_Fiscal_Ejercicio,
                                              @Meses_Uso_En_Ejercicio, @Dep_Acum_Inicio;
     END
 
@@ -339,7 +366,8 @@ NextRecord:
 END
 GO
 
-PRINT 'SP sp_Actualizar_INPC_Nacionales v2.0 creado exitosamente';
+PRINT 'SP sp_Actualizar_INPC_Nacionales v2.4 creado exitosamente';
 PRINT 'IMPORTANTE: Este SP actualiza Calculo_RMF (NO Staging_Activo)';
 PRINT 'Debe ejecutarse DESPUÉS de sp_Calcular_RMF_Activos_Nacionales';
+PRINT 'v2.4: Procesa TODOS los activos (fix: factores fiscales en 1.0)';
 GO
