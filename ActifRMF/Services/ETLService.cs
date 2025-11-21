@@ -222,6 +222,21 @@ public class ETLService
                 Console.WriteLine("SP Nacionales ejecutado");
             }
 
+            // Actualizar INPC para activos nacionales (calcula factores y multiplica valores)
+            Console.WriteLine("=== Actualizando INPC para activos NACIONALES ===");
+            using (var command = new SqlCommand("dbo.sp_Actualizar_INPC_Nacionales", connection))
+            {
+                command.CommandType = CommandType.StoredProcedure;
+                command.CommandTimeout = 300;
+
+                command.Parameters.AddWithValue("@ID_Compania", idCompania);
+                command.Parameters.AddWithValue("@Año_Calculo", añoCalculo);
+                // @Id_Grupo_Simulacion tiene valor por defecto = 8
+
+                await command.ExecuteNonQueryAsync();
+                Console.WriteLine("SP Actualizar INPC ejecutado");
+            }
+
             // Obtener totales de Calculo_RMF por compañía y año
             using (var command = new SqlCommand(@"
                 SELECT
