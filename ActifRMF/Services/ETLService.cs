@@ -50,104 +50,40 @@ public class ETLService
             // NOTA: La limpieza de staging se hace en el ETL .NET para respetar foreign keys
             // El ETL .NET borra en el orden correcto: Calculo_RMF -> Calculo_Fiscal_Simulado -> Staging_Activo
 
-            // Invocar el ETL .NET standalone en lugar de queries cross-database
-            // Usar ruta relativa: buscar ETL en directorio padre o configuración
-            var baseDir = Directory.GetCurrentDirectory();
-            var etlPath = Path.Combine(baseDir, "..", "ETL_NET", "ActifRMF.ETL");
-            var etlExe = Path.Combine(etlPath, "bin", "Release", "net8.0", "ActifRMF.ETL.dll");
+            // Ejecutar ETL integrado (sin proceso externo)
+            Console.WriteLine($"Ejecutando ETL integrado para compañía {idCompania}, año {añoCalculo}");
 
-            // Si no existe, intentar buscar desde el directorio de la aplicación
-            if (!File.Exists(etlExe))
+            // Ejecutar en Task.Run para no bloquear el thread del servidor web
+            await Task.Run(async () =>
             {
-                etlPath = Path.Combine(baseDir, "ETL");
-                etlExe = Path.Combine(etlPath, "ActifRMF.ETL.dll");
-            }
-
-            var arguments = $"\"{etlExe}\" {idCompania} {añoCalculo}";
-            if (maxRegistros.HasValue)
-            {
-                arguments += $" --limit {maxRegistros.Value}";
-            }
-            // Pasar el lote al ETL .NET para sincronizar con el polling
-            arguments += $" --lote {result.LoteImportacion}";
-
-            Console.WriteLine($"Ejecutando: dotnet {arguments}\n");
-
-            var processInfo = new System.Diagnostics.ProcessStartInfo
-            {
-                FileName = "dotnet",
-                Arguments = arguments,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true
-            };
-
-            var process = new System.Diagnostics.Process { StartInfo = processInfo };
-
-            process.Start();
-
-            // Leer output asíncronamente para evitar deadlock
-            var outputTask = Task.Run(async () =>
-            {
-                var output = new System.Text.StringBuilder();
-                using var reader = process.StandardOutput;
-                string? line;
-                while ((line = await reader.ReadLineAsync()) != null)
-                {
-                    Console.WriteLine(line);
-                    output.AppendLine(line);
-                }
-                return output.ToString();
+                var etl = new ETLActivos();
+                await etl.EjecutarETL(idCompania, añoCalculo, maxRegistros, result.LoteImportacion);
             });
 
-            var errorTask = Task.Run(async () =>
-            {
-                var error = new System.Text.StringBuilder();
-                using var reader = process.StandardError;
-                string? line;
-                while ((line = await reader.ReadLineAsync()) != null)
-                {
-                    Console.WriteLine($"ERROR: {line}");
-                    error.AppendLine(line);
-                }
-                return error.ToString();
-            });
+            // Consultar resultados desde la base de datos
+            using var conn = new SqlConnection(_connectionStringRMF);
+            await conn.OpenAsync();
 
-            await process.WaitForExitAsync();
+            var cmd = new SqlCommand(@"
+                SELECT COUNT(*)
+                FROM Staging_Activo
+                WHERE ID_Compania = @ID_Compania
+                  AND Año_Calculo = @Año_Calculo
+                  AND Lote_Importacion = @Lote", conn);
 
-            var output = await outputTask;
-            var error = await errorTask;
+            cmd.Parameters.AddWithValue("@ID_Compania", idCompania);
+            cmd.Parameters.AddWithValue("@Año_Calculo", añoCalculo);
+            cmd.Parameters.AddWithValue("@Lote", result.LoteImportacion);
 
-            if (process.ExitCode != 0)
-            {
-                throw new Exception($"ETL .NET falló con código {process.ExitCode}. Error: {error}");
-            }
-
-            // Extraer información del output
-            var outputText = output.ToString();
-
-            // Buscar "Activos cargados: XXX"
-            var match = System.Text.RegularExpressions.Regex.Match(outputText, @"Activos cargados:\s*(\d+)");
-            if (match.Success)
-            {
-                result.RegistrosImportados = int.Parse(match.Groups[1].Value);
-            }
-
-            // Buscar "Lote: GUID"
-            var matchLote = System.Text.RegularExpressions.Regex.Match(outputText, @"Lote:\s*([0-9a-f-]+)");
-            if (matchLote.Success)
-            {
-                result.LoteImportacion = Guid.Parse(matchLote.Groups[1].Value);
-            }
+            result.RegistrosImportados = (int)await cmd.ExecuteScalarAsync();
 
             result.FechaFin = DateTime.Now;
             result.DuracionSegundos = (int)(result.FechaFin.Value - result.FechaInicio).TotalSeconds;
             result.Estado = "Completado";
             result.Exitoso = true;
-            result.QueryEjecutado = $"ETL .NET ejecutado: dotnet {arguments}";
+            result.QueryEjecutado = $"ETL integrado ejecutado para compañía {idCompania}";
 
-            Console.WriteLine("\n✅ ETL .NET Completado");
+            Console.WriteLine("\n✅ ETL Integrado Completado");
             Console.WriteLine($"Registros importados: {result.RegistrosImportados}");
             Console.WriteLine($"Duración: {result.DuracionSegundos} segundos\n");
 
