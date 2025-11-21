@@ -1,0 +1,220 @@
+================================================================================
+ANÁLISIS - FOLIOS NO CALCULADOS
+ActifRMF v2.4.0 - Año 2025
+Fecha: 20-nov-2025
+================================================================================
+
+RESUMEN EJECUTIVO
+=================
+De 8 folios agregados al Query_ETL:
+- ✅ 4 folios calculados correctamente (208312, 208313, 208314, 51484)
+- ⚠️ 1 folio importado pero NO calculado (2963156)
+- ❌ 3 folios NO importados (2963158, 205815, 205816)
+
+================================================================================
+FOLIO 2963156 - NO CALCULADO (En Staging pero sin cálculo)
+================================================================================
+
+Status en sistema:
+------------------
+✅ En Query_ETL: SÍ (posición verificada)
+✅ En Staging_Activo: SÍ (ID_Compania=188, ID_Pais=20)
+❌ En Calculo_RMF: NO
+
+Causa raíz:
+-----------
+**ManejaFiscal = 'N'**
+**ManejaUSGAAP = 'N'**
+
+El activo NO maneja ningún tipo de depreciación. El proceso sp_Calcular_RMF
+solo calcula activos que tengan al menos:
+- ManejaFiscal = 'S' (para cálculo fiscal), O
+- ManejaUSGAAP = 'S' (para cálculo USGAAP)
+
+Datos del activo en origen:
+----------------------------
+ID_NUM_ACTIVO:      2963156
+ID_COMPANIA:        188
+Placa:              ES44PRUEBA
+Descripción:        MODULES FOR OLTT
+Fecha Compra:       01-feb-2024
+ID_PAIS:            20
+STATUS:             A (Activo)
+Costo Adq:          $60,000
+
+Problema:
+---------
+El activo NO tiene configuradas las fechas de inicio de depreciación:
+- FECHA_INIC_DEPREC: NULL (Fiscal)
+- FECHA_INIC_DEPREC3: NULL (USGAAP)
+
+Sin fechas de inicio, el sistema no puede marcar ManejaFiscal='S' ni ManejaUSGAAP='S'.
+
+Solución:
+---------
+OPCIÓN A: Configurar fecha inicio depreciación en origen (actif_web_cima_dev)
+  UPDATE activo
+  SET FECHA_INIC_DEPREC3 = '2024-02-01',  -- Para extranjeros usar tipo 3
+      FLG_NOCAPITALIZABLE_3 = 'S'         -- Marcar que maneja USGAAP
+  WHERE ID_NUM_ACTIVO = 2963156;
+
+OPCIÓN B: Buscar otro activo extranjero con depreciación configurada
+
+================================================================================
+FOLIOS 2963158, 205815, 205816 - NO IMPORTADOS
+================================================================================
+
+Estos 3 folios están en Query_ETL pero NO se importaron a Staging_Activo.
+
+FOLIO 2963158 - Nacional Baja feb-2025
+---------------------------------------
+ID_COMPANIA:        188
+STATUS:             B (Baja)
+FECHA_BAJA:         04-feb-2025
+FECHA_COMPRA:       01-mar-2023
+ID_PAIS:            1 (Nacional)
+Costo:              $30,000
+
+Verificación de filtros ETL:
+✅ STATUS = 'B' AND YEAR(FECHA_BAJA) = 2025 → OK
+✅ FECHA_COMPRA <= '2025-12-31' → OK
+✅ FECHA_BAJA >= '2025-01-01' → OK
+✅ En lista IN (...) → OK
+
+Causa probable:
+❓ Posible filtro adicional en el proceso ETL no visible en Query_ETL
+❓ Validación de ManejaFiscal en origen antes de importar
+❓ Error en el proceso de importación para activos dados de baja
+
+FOLIO 205815 - Extranjero Depreciación Activa
+----------------------------------------------
+ID_COMPANIA:        188
+STATUS:             A (Activo)
+FECHA_COMPRA:       13-dic-2022
+FECHA_INIC_DEPREC3: 01-feb-2023
+ID_PAIS:            2 (USA)
+Costo Adq:          $12,699.98
+
+Verificación de filtros ETL:
+✅ STATUS = 'A' → OK
+✅ FECHA_COMPRA <= '2025-12-31' → OK
+✅ FECHA_BAJA IS NULL → OK
+✅ En lista IN (...) → OK
+
+Causa probable:
+❓ Mismo caso que 205816 (ver abajo)
+
+FOLIO 205816 - Extranjero Depreciación Activa
+----------------------------------------------
+ID_COMPANIA:        188
+STATUS:             A (Activo)
+FECHA_COMPRA:       13-dic-2022
+FECHA_INIC_DEPREC3: 01-feb-2023
+ID_PAIS:            2 (USA)
+Costo Adq:          $12,699.98
+
+Verificación de filtros ETL:
+✅ STATUS = 'A' → OK
+✅ FECHA_COMPRA <= '2025-12-31' → OK
+✅ FECHA_BAJA IS NULL → OK
+✅ En lista IN (...) → OK
+
+Causa probable:
+❓ Posible que NO tengan FLG_NOCAPITALIZABLE_3 = 'S' en origen
+❓ Posible que el proceso ETL tenga validaciones adicionales
+
+Verificación sugerida en origen:
+---------------------------------
+SELECT ID_NUM_ACTIVO, FLG_NOCAPITALIZABLE_2, FLG_NOCAPITALIZABLE_3,
+       FECHA_INIC_DEPREC, FECHA_INIC_DEPREC3
+FROM activo
+WHERE ID_NUM_ACTIVO IN (205815, 205816);
+
+================================================================================
+RECOMENDACIONES
+================================================================================
+
+PARA COMPLETAR CASOS AUTOTEST:
+-------------------------------
+
+OPCIÓN A: Reparar folio 2963156 (RECOMENDADO)
+  1. Actualizar en origen para configurar depreciación USGAAP
+  2. Re-ejecutar ETL para compañía 188
+  3. Re-ejecutar cálculo para compañía 188
+  4. Crear INSERT script para caso AutoTest
+
+OPCIÓN B: Buscar folios alternativos
+  1. Buscar otros activos extranjeros con depreciación activa configurada
+  2. Buscar otra baja 2025 nacional con ManejaFiscal='S'
+  3. Agregar al Query_ETL
+  4. Ejecutar ETL y cálculo
+  5. Crear INSERT scripts
+
+OPCIÓN C: Proceder solo con casos disponibles (ACCIÓN INMEDIATA)
+  1. Ejecutar INSERT_AutoTest_Casos_4_Nuevos.sql
+  2. Validar que los 4 casos nuevos pasen
+  3. Total casos funcionando: 6 (2 actuales + 4 nuevos)
+  4. Dejar pendientes para fase 2
+
+================================================================================
+CASOS AUTOTEST - ESTADO FINAL RECOMENDADO
+================================================================================
+
+CASOS ACTUALES (Mantener):
+--------------------------
+✅ Caso 1: Folio 50847  - Nacional totalmente depreciado + 10% MOI
+✅ Caso 3: Folio 206122 - Nacional depreciación activa Tasa 10%
+
+CASOS NUEVOS (Agregar):
+-----------------------
+✅ Caso 2: Folio 51484  - Extranjero totalmente depreciado + 10% MOI
+✅ Caso 4: Folio 208312 - Nacional depreciación activa Tasa 35%
+✅ Caso 5: Folio 208313 - Nacional alta antes junio Tasa 35%
+✅ Caso 6: Folio 208314 - Nacional depreciación activa (variante)
+
+CASO A ELIMINAR:
+----------------
+❌ Caso 2 actual: Folio 50909 - Duplicado de Caso 1
+
+TOTAL CASOS FUNCIONANDO: 6
+---------------------------
+- 2 con regla 10% MOI (casos 1 y 2 nuevo)
+- 4 en depreciación activa (casos 3, 4, 5, 6)
+- 1 extranjero, 5 nacionales
+- 2 tasas bajas (5%, 10%), 4 tasa alta (35%)
+
+ESCENARIOS CUBIERTOS:
+---------------------
+✅ Totalmente depreciado Nacional
+✅ Totalmente depreciado Extranjero
+✅ Depreciación activa Nacional (2 tasas diferentes)
+✅ Alta antes de junio
+✅ Validación de consistencia (activos idénticos)
+✅ Factor SH alto (antigüedad)
+✅ Factor SH bajo (reciente)
+
+ESCENARIOS PENDIENTES PARA FASE 2:
+-----------------------------------
+[ ] Baja en año con saldo
+[ ] Termina depreciar en año
+[ ] Alta después de junio
+[ ] Más casos de extranjeros en depreciación activa
+
+================================================================================
+SIGUIENTE PASO INMEDIATO
+================================================================================
+
+Ejecutar el archivo:
+/Users/enrique/ActifRMF/Database/INSERT_AutoTest_Casos_4_Nuevos.sql
+
+Este archivo:
+1. Elimina el Caso 2 duplicado actual (folio 50909)
+2. Inserta 4 casos nuevos (folios 51484, 208312, 208313, 208314)
+3. Muestra resumen de casos insertados
+
+Después:
+1. Ejecutar ValidadorAutoTest
+2. Verificar que 6 casos pasen (todos los validados)
+3. Generar reporte final de cobertura
+
+================================================================================

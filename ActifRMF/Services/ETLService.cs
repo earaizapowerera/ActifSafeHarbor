@@ -84,32 +84,40 @@ public class ETLService
             };
 
             var process = new System.Diagnostics.Process { StartInfo = processInfo };
-            var output = new System.Text.StringBuilder();
-            var error = new System.Text.StringBuilder();
-
-            process.OutputDataReceived += (sender, e) =>
-            {
-                if (!string.IsNullOrEmpty(e.Data))
-                {
-                    Console.WriteLine(e.Data);
-                    output.AppendLine(e.Data);
-                }
-            };
-
-            process.ErrorDataReceived += (sender, e) =>
-            {
-                if (!string.IsNullOrEmpty(e.Data))
-                {
-                    Console.WriteLine($"ERROR: {e.Data}");
-                    error.AppendLine(e.Data);
-                }
-            };
 
             process.Start();
-            process.BeginOutputReadLine();
-            process.BeginErrorReadLine();
+
+            // Leer output asíncronamente para evitar deadlock
+            var outputTask = Task.Run(async () =>
+            {
+                var output = new System.Text.StringBuilder();
+                using var reader = process.StandardOutput;
+                string? line;
+                while ((line = await reader.ReadLineAsync()) != null)
+                {
+                    Console.WriteLine(line);
+                    output.AppendLine(line);
+                }
+                return output.ToString();
+            });
+
+            var errorTask = Task.Run(async () =>
+            {
+                var error = new System.Text.StringBuilder();
+                using var reader = process.StandardError;
+                string? line;
+                while ((line = await reader.ReadLineAsync()) != null)
+                {
+                    Console.WriteLine($"ERROR: {line}");
+                    error.AppendLine(line);
+                }
+                return error.ToString();
+            });
 
             await process.WaitForExitAsync();
+
+            var output = await outputTask;
+            var error = await errorTask;
 
             if (process.ExitCode != 0)
             {

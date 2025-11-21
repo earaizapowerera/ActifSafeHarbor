@@ -31,7 +31,7 @@
         </div>
 
         <div class="row mt-4">
-            <div class="col-md-6">
+            <div class="col-lg-8 mx-auto">
                 <div class="card">
                     <div class="card-header bg-success text-white">
                         <h5><i class="fas fa-play-circle"></i> Ejecutar Cálculo</h5>
@@ -50,6 +50,14 @@
                                 <label class="form-label">
                                     Compañías con datos importados * <small class="text-muted">(selecciona una o más)</small>
                                 </label>
+                                <div class="mb-2">
+                                    <button type="button" class="btn btn-sm btn-outline-primary" id="btnSeleccionarTodas">
+                                        <i class="fas fa-check-double"></i> Seleccionar todas
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" id="btnDeseleccionarTodas">
+                                        <i class="fas fa-times"></i> Deseleccionar todas
+                                    </button>
+                                </div>
                                 <div id="companiasChecklist" class="border rounded p-3" style="max-height: 300px; overflow-y: auto; background-color: #f8f9fa;">
                                     <div class="text-center text-muted">Seleccione primero un año</div>
                                 </div>
@@ -65,34 +73,6 @@
                                 <i class="fas fa-play"></i> Ejecutar Cálculo
                             </button>
                         </form>
-                    </div>
-                </div>
-            </div>
-
-            <div class="col-md-6">
-                <div class="card">
-                    <div class="card-header">
-                        <h5><i class="fas fa-info-circle"></i> Información</h5>
-                    </div>
-                    <div class="card-body">
-                        <h6>¿Qué hace el Cálculo RMF?</h6>
-                        <ul>
-                            <li>Toma datos de Staging_Activo (todos los activos del año/compañía)</li>
-                            <li>Ejecuta stored procedures sp_Calcular_RMF_Activos_Extranjeros y sp_Calcular_RMF_Activos_Nacionales</li>
-                            <li>Calcula MOI (Monto Original de Inversión)</li>
-                            <li>Calcula depreciación fiscal del ejercicio</li>
-                            <li>Calcula saldo pendiente de depreciar</li>
-                            <li>Aplica regla de 10% MOI para activos extranjeros</li>
-                            <li>Calcula valor reportable en MXN</li>
-                            <li>Guarda resultados en tabla Calculo_RMF</li>
-                        </ul>
-
-                        <h6 class="mt-3">Requisitos:</h6>
-                        <ul>
-                            <li>Debe existir datos ETL previos para la compañía/año</li>
-                            <li>El cálculo genera un nuevo GUID (Lote_Calculo)</li>
-                            <li>Puede ejecutarse múltiples veces sin afectar cálculos anteriores</li>
-                        </ul>
                     </div>
                 </div>
             </div>

@@ -31,7 +31,7 @@
         </div>
 
         <div class="row mt-4">
-            <div class="col-md-6">
+            <div class="col-lg-8 mx-auto">
                 <div class="card">
                     <div class="card-header bg-primary text-white">
                         <h5><i class="fas fa-play-circle"></i> Ejecutar Extracción</h5>
@@ -42,6 +42,14 @@
                                 <label class="form-label">
                                     Compañías * <small class="text-muted">(selecciona una o más)</small>
                                 </label>
+                                <div class="mb-2">
+                                    <button type="button" class="btn btn-sm btn-outline-primary" id="btnSeleccionarTodas">
+                                        <i class="fas fa-check-double"></i> Seleccionar todas
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" id="btnDeseleccionarTodas">
+                                        <i class="fas fa-times"></i> Deseleccionar todas
+                                    </button>
+                                </div>
                                 <div id="companiasChecklist" class="border rounded p-3" style="max-height: 300px; overflow-y: auto; background-color: #f8f9fa;">
                                     <div class="text-center text-muted">Cargando compañías...</div>
                                 </div>
@@ -68,32 +76,6 @@
                                 <i class="fas fa-play"></i> Ejecutar ETL
                             </button>
                         </form>
-                    </div>
-                </div>
-            </div>
-
-            <div class="col-md-6">
-                <div class="card">
-                    <div class="card-header">
-                        <h5><i class="fas fa-info-circle"></i> Información</h5>
-                    </div>
-                    <div class="card-body">
-                        <h6>¿Qué hace el ETL?</h6>
-                        <ul>
-                            <li>Extrae activos NO propios (FLG_PROPIO = 'N')</li>
-                            <li>Obtiene datos de depreciación fiscal</li>
-                            <li>Calcula tasas de depreciación mensuales</li>
-                            <li>Obtiene depreciación acumulada del año anterior</li>
-                            <li>Obtiene índices INPC para activos mexicanos</li>
-                            <li>Guarda datos en tabla Staging_Activo</li>
-                        </ul>
-
-                        <h6 class="mt-3">Notas:</h6>
-                        <ul>
-                            <li>Solo extrae activos activos en el año especificado</li>
-                            <li>Cada extracción genera un GUID único (Lote_Importacion)</li>
-                            <li>Puede ejecutarse múltiples veces sin afectar extracciones anteriores</li>
-                        </ul>
                     </div>
                 </div>
             </div>

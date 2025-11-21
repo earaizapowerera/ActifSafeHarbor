@@ -1,0 +1,356 @@
+================================================================================
+PLAN DE CASOS AUTOTEST - BASADOS EN CICLO DE VIDA
+ActifRMF v2.4.0 - Año Cálculo 2025
+Fecha: 20-nov-2025
+================================================================================
+
+OBJETIVO
+========
+Replantear casos AutoTest basados en CICLO DE VIDA / TEMPORALIDAD del activo
+en lugar de tipo de activo. Cada escenario debe tener ejemplo NACIONAL y EXTRANJERO.
+
+ESCENARIOS IDENTIFICADOS EN ORIGEN (actif_web_cima_dev)
+=======================================================
+
+┌──────┬───────────────────────────────────┬────────────┬────────────┬─────────┐
+│ #    │ Escenario                         │ Nacional   │ Extranjero │ Estado  │
+├──────┼───────────────────────────────────┼────────────┼────────────┼─────────┤
+│ 1    │ Totalmente depreciado + 10% MOI   │ ✅ 50847   │ ✅ 51484   │ OK      │
+├──────┼───────────────────────────────────┼────────────┼────────────┼─────────┤
+│ 2    │ Depreciación activa               │ ✅ 208312  │ ✅ 205815  │ OK      │
+├──────┼───────────────────────────────────┼────────────┼────────────┼─────────┤
+│ 3    │ Alta antes de junio 2025          │ ✅ 2963225 │ ✅ 2963223 │ OK ETL  │
+├──────┼───────────────────────────────────┼────────────┼────────────┼─────────┤
+│ 4    │ Alta después de junio 2025        │ ✅ 2963241 │ ✅ 2963242 │ OK ETL  │
+├──────┼───────────────────────────────────┼────────────┼────────────┼─────────┤
+│ 5    │ Baja en 2025 con saldo >10% MOI   │ ✅ 2963158 │ ⚠️ 43668   │ Revisar │
+├──────┼───────────────────────────────────┼────────────┼────────────┼─────────┤
+│ 6    │ Termina depreciar en 2025         │ ⚠️ Buscar  │ ⚠️ Buscar  │ Falta   │
+└──────┴───────────────────────────────────┴────────────┴────────────┴─────────┘
+
+================================================================================
+DETALLE DE FOLIOS POR ESCENARIO
+================================================================================
+
+ESCENARIO 1: TOTALMENTE DEPRECIADO + 10% MOI
+=============================================
+
+NACIONAL: Folio 50847 (Ya en ETL ✅)
+------------------------------------
+Compañía:       188
+Placa:          AG02850 - TERRENO PLANTA 30
+Fecha Compra:   01-ago-1983
+ID_PAIS:        1 (Nacional)
+Costo:          $1,857,799
+Estado:         Activo (A)
+Características:
+  - Activo muy antiguo (1983)
+  - Totalmente depreciado en 2025
+  - Debe aplicar regla 10% MOI mínimo
+  - Ya usado en Caso 1 AutoTest actual
+
+EXTRANJERO: Folio 51484 (Candidato)
+------------------------------------
+Compañía:       188
+Placa:          AA55172 - EDIFICIO PLANTA 160
+Fecha Compra:   01-ene-1984
+Fecha Inic Dep3: NULL
+ID_PAIS:        2 (USA)
+Costo Adq:      $471,835
+Estado:         Activo (A)
+Características:
+  - Activo antiguo (1984)
+  - Sin fecha inicio deprec USGAAP (requiere configuración)
+  - Debe estar totalmente depreciado
+  - Debe aplicar regla 10% MOI mínimo
+
+ESCENARIO 2: DEPRECIACIÓN ACTIVA (Saldo > 10% MOI)
+===================================================
+
+NACIONAL: Folio 208312 (Candidato)
+-----------------------------------
+Compañía:       188
+Placa:          ESD33354 - TROQUEL
+Fecha Compra:   25-abr-2023
+Fecha Inic Dep: 01-may-2023
+ID_PAIS:        1 (Nacional)
+Costo:          $22,854.52
+Estado:         Activo (A)
+Características:
+  - Adquirido abr-2023
+  - En depreciación activa en 2025
+  - Tiene saldo pendiente significativo
+  - NO aplica regla 10% MOI
+
+EXTRANJERO: Folio 205815 (Candidato)
+-------------------------------------
+Compañía:       188
+Placa:          ESD0032062 - DISCO PARA SERVIDOR
+Fecha Compra:   13-dic-2022
+Fecha Inic Dep3: 01-feb-2023
+ID_PAIS:        2 (USA)
+Costo Adq:      $12,699.98
+Estado:         Activo (A)
+Características:
+  - Adquirido dic-2022
+  - Inicia deprec USGAAP feb-2023
+  - En depreciación activa en 2025
+  - Tiene saldo pendiente
+  - NO aplica regla 10% MOI
+
+ESCENARIO 3: ALTA ANTES DE JUNIO 2025 (Afecta Safe Harbor)
+===========================================================
+
+NACIONAL: Folio 2963225 (Ya en ETL ✅)
+---------------------------------------
+Compañía:       188
+Placa:          AA68082 - Descripcion corta
+Fecha Compra:   01-abr-2025 (MES 4)
+Fecha Inic Dep: 01-abr-2025
+ID_PAIS:        1 (Nacional)
+Costo:          $1,500
+Estado:         Pendiente (P)
+Características:
+  - Alta ABRIL-2025 (antes de junio)
+  - Depreciación parcial 2025 (9 meses)
+  - Factor Safe Harbor: usa INPC junio-2025
+  - DIFERENTE a factor fiscal normal
+
+EXTRANJERO: Folio 2963223 (Ya en ETL ✅)
+-----------------------------------------
+Compañía:       188
+Placa:          AG18016 - Descripción Corta Activo Hijo
+Fecha Compra:   04-abr-2025 (MES 4)
+Fecha Inic Dep3: NULL (requiere configuración)
+ID_PAIS:        5
+Costo Adq:      $20,000
+Estado:         Pendiente (P)
+Características:
+  - Alta ABRIL-2025 (antes de junio)
+  - Depreciación parcial 2025
+  - Factor Safe Harbor: usa Tipo Cambio junio-2025
+  - DIFERENTE a factor fiscal normal
+
+ESCENARIO 4: ALTA DESPUÉS DE JUNIO 2025 (No afecta Safe Harbor)
+================================================================
+
+NACIONAL: Folio 2963241 (Ya en ETL ✅)
+---------------------------------------
+Compañía:       188
+Placa:          ESD43301 - 1 TABLERO
+Fecha Compra:   01-jun-2025 (MES 6)
+Fecha Inic Dep: 01-jul-2025
+ID_PAIS:        1 (Nacional)
+Costo:          $55,791.87
+Estado:         Pendiente (P)
+Características:
+  - Alta JUNIO-2025 (después de junio)
+  - Inicia deprec JULIO-2025
+  - Depreciación parcial 2025 (6 meses)
+  - Factor Safe Harbor: IGUAL a factor fiscal
+  - No hay diferencia SH vs Fiscal
+
+EXTRANJERO: Folio 2963242 (Ya en ETL ✅)
+-----------------------------------------
+Compañía:       188
+Placa:          ESD43302 - 1 DYNALAB
+Fecha Compra:   01-jun-2025 (MES 6)
+Fecha Inic Dep3: 01-jul-2025
+ID_PAIS:        2 (USA)
+Costo Reexp:    $3,166
+Estado:         Pendiente (P)
+Características:
+  - Alta JUNIO-2025 (después de junio)
+  - Inicia deprec JULIO-2025
+  - Depreciación parcial 2025
+  - Factor Safe Harbor: IGUAL a factor fiscal
+  - No hay diferencia SH vs Fiscal
+
+ESCENARIO 5: BAJA EN 2025 CON SALDO > 10% MOI
+==============================================
+
+NACIONAL: Folio 2963158 (Candidato ⭐)
+---------------------------------------
+Compañía:       188
+Placa:          ESD32924 - 1 TABLERO DE CONTRUCCION
+Fecha Compra:   01-mar-2023
+Fecha Inic Dep: 01-abr-2023
+Fecha BAJA:     04-feb-2025 ⚠️
+ID_PAIS:        1 (Nacional)
+Costo:          $30,000
+Estado:         BAJA (B)
+Características:
+  - Adquirido mar-2023
+  - Dado de BAJA feb-2025
+  - Solo 2 años de uso (debe tener saldo)
+  - INPC debe tomarse hasta mes anterior a baja (ene-2025)
+  - Caso ideal para probar baja con saldo
+
+EXTRANJERO: Folio 43668 (⚠️ Revisar)
+--------------------------------------
+Compañía:       188
+Placa:          AG18016 - 3174 IBM CONTROLLER
+Fecha Compra:   09-nov-2009
+Fecha Inic Dep3: 09-nov-2009
+Fecha BAJA:     27-may-2025 ⚠️
+ID_PAIS:        2 (USA)
+Costo Adq:      $350
+Estado:         BAJA (B)
+Características:
+  - Adquirido nov-2009
+  - Dado de BAJA may-2025
+  - 15+ años de uso (probablemente depreciado)
+  - Costo bajo ($350)
+  - ⚠️ Verificar si tiene saldo > 10% MOI
+
+ALTERNATIVA: Buscar otra baja 2025 más reciente
+
+ESCENARIO 6: TERMINA DEPRECIAR EN 2025 (Fecha Fin Deprec en 2025)
+==================================================================
+
+NACIONAL: ⚠️ PENDIENTE BÚSQUEDA
+---------------------------------
+Criterios:
+  - Fecha_Fin_Deprec_2 (Fiscal) entre 01-ene-2025 y 31-dic-2025
+  - Activo debe estar Activo (A) o darse de baja en 2025
+  - Depreciación parcial en el año (solo hasta mes de fin deprec)
+
+EXTRANJERO: ⚠️ PENDIENTE BÚSQUEDA
+-----------------------------------
+Criterios:
+  - Fecha_Fin_Deprec_3 (USGAAP) entre 01-ene-2025 y 31-dic-2025
+  - Activo debe estar Activo (A) o darse de baja en 2025
+  - Depreciación parcial en el año (solo hasta mes de fin deprec)
+
+================================================================================
+FOLIOS A AGREGAR AL ETL
+================================================================================
+
+FOLIOS YA EN ETL (4):
+---------------------
+✅ 2963225 - Nacional, alta abr-2025
+✅ 2963241 - Nacional, alta jun-2025
+✅ 2963223 - Extranjero, alta abr-2025
+✅ 2963242 - Extranjero, alta jun-2025
+
+FOLIOS A AGREGAR (4-6):
+-----------------------
+[ ] 208312  - Nacional, depreciación activa
+[ ] 205815  - Extranjero, depreciación activa
+[ ] 51484   - Extranjero, totalmente depreciado
+[ ] 2963158 - Nacional, baja feb-2025
+[ ] TBD     - Nacional, termina deprec 2025
+[ ] TBD     - Extranjero, termina deprec 2025
+
+Total folios en ETL: 90 actual + 4-6 = 94-96
+
+================================================================================
+CASOS AUTOTEST PROPUESTOS
+================================================================================
+
+ELIMINAR:
+---------
+❌ Caso 2 actual (Folio 50909) - Duplicado de Caso 1 (mismo escenario)
+
+MANTENER / MODIFICAR:
+---------------------
+✅ Caso 1: Folio 50847  - Renombrar a "Nacional: Totalmente depreciado + 10% MOI"
+✅ Caso 3: Folio 206122 - Renombrar a "Nacional: Depreciación activa"
+
+AGREGAR NUEVOS:
+---------------
+[ ] Caso 2:  Folio 51484  - "Extranjero: Totalmente depreciado + 10% MOI"
+[ ] Caso 4:  Folio 205815 - "Extranjero: Depreciación activa"
+[ ] Caso 5:  Folio 2963225 - "Nacional: Alta antes junio 2025"
+[ ] Caso 6:  Folio 2963223 - "Extranjero: Alta antes junio 2025"
+[ ] Caso 7:  Folio 2963241 - "Nacional: Alta después junio 2025"
+[ ] Caso 8:  Folio 2963242 - "Extranjero: Alta después junio 2025"
+[ ] Caso 9:  Folio 2963158 - "Nacional: Baja en 2025 con saldo"
+[ ] Caso 10: Folio TBD - "Extranjero: Baja en 2025 con saldo"
+[ ] Caso 11: Folio TBD - "Nacional: Termina depreciar en 2025"
+[ ] Caso 12: Folio TBD - "Extranjero: Termina depreciar en 2025"
+
+Total casos: 12 (6 escenarios × 2 orígenes)
+
+================================================================================
+CONSULTAS PENDIENTES PARA COMPLETAR ESCENARIOS
+================================================================================
+
+CONSULTA 1: Buscar extranjero baja 2025 más reciente con saldo
+---------------------------------------------------------------
+SELECT TOP 10 a.ID_NUM_ACTIVO, a.ID_ACTIVO, a.DESCRIPCION,
+       a.FECHA_COMPRA, a.FECHA_INIC_DEPREC3, a.FECHA_BAJA,
+       a.COSTO_ADQUISICION, YEAR(FECHA_COMPRA) as Año
+FROM activo a
+WHERE a.ID_COMPANIA = 188
+  AND a.ID_PAIS > 1
+  AND a.STATUS = 'B'
+  AND YEAR(a.FECHA_BAJA) = 2025
+  AND YEAR(a.FECHA_COMPRA) >= 2020  -- Recientes con saldo
+  AND a.COSTO_ADQUISICION > 0
+ORDER BY a.FECHA_BAJA
+
+CONSULTA 2: Buscar nacional que termine depreciar en 2025
+----------------------------------------------------------
+SELECT TOP 10 a.ID_NUM_ACTIVO, a.ID_ACTIVO, a.DESCRIPCION,
+       a.FECHA_COMPRA, a.FECHA_INIC_DEPREC,
+       a.Fecha_Fin_Deprec_2 as Fin_Fiscal,
+       MONTH(a.Fecha_Fin_Deprec_2) as Mes_Fin
+FROM activo a
+WHERE a.ID_COMPANIA = 188
+  AND a.ID_PAIS = 1
+  AND a.STATUS = 'A'
+  AND YEAR(a.Fecha_Fin_Deprec_2) = 2025
+  AND a.COSTO_REVALUADO > 0
+ORDER BY a.Fecha_Fin_Deprec_2
+
+CONSULTA 3: Buscar extranjero que termine depreciar en 2025
+------------------------------------------------------------
+SELECT TOP 10 a.ID_NUM_ACTIVO, a.ID_ACTIVO, a.DESCRIPCION,
+       a.FECHA_COMPRA, a.FECHA_INIC_DEPREC3,
+       a.Fecha_Fin_Deprec_3 as Fin_USGAAP,
+       MONTH(a.Fecha_Fin_Deprec_3) as Mes_Fin
+FROM activo a
+WHERE a.ID_COMPANIA = 188
+  AND a.ID_PAIS > 1
+  AND a.STATUS = 'A'
+  AND YEAR(a.Fecha_Fin_Deprec_3) = 2025
+  AND a.COSTO_ADQUISICION > 0
+ORDER BY a.Fecha_Fin_Deprec_3
+
+================================================================================
+PRÓXIMOS PASOS
+================================================================================
+
+PASO 1: Ejecutar consultas pendientes
+--------------------------------------
+- Buscar baja extranjera 2025 reciente con saldo
+- Buscar nacional termina deprec 2025
+- Buscar extranjero termina deprec 2025
+
+PASO 2: Actualizar ETL con nuevos folios
+-----------------------------------------
+- Agregar 4-6 folios faltantes al Query_ETL
+
+PASO 3: Ejecutar ETL y cálculos para Compañía 188
+--------------------------------------------------
+- POST /api/etl/188/2025
+- POST /api/calcular/188/2025
+
+PASO 4: Verificar valores calculados
+-------------------------------------
+- Consultar Calculo_RMF para todos los folios nuevos
+- Validar que cumplen escenarios esperados
+
+PASO 5: Crear scripts INSERT para AutoTest
+-------------------------------------------
+- Eliminar Caso 2 (Folio 50909)
+- Renombrar Casos 1 y 3
+- Crear INSERT para Casos 2, 4-12
+
+PASO 6: Ejecutar ValidadorAutoTest
+-----------------------------------
+- Validar que todos los casos pasen (12/12)
+- Exit code = 0
+
+================================================================================

@@ -1,0 +1,192 @@
+================================================================================
+FOLIOS DE ALTA 2025 AGREGADOS AL ETL - COMPAÑÍA 188
+ActifRMF v2.4.0 - Año Cálculo 2025
+Fecha: 20-nov-2025
+================================================================================
+
+RESUMEN EJECUTIVO
+=================
+✅ Total folios agregados: 4 (2 nacionales + 2 extranjeros)
+✅ Escenarios cubiertos: Alta antes de junio + Alta después de junio
+✅ ETL actualizado en ConfiguracionCompania.Query_ETL
+✅ Total activos en ETL: 90 (86 originales + 4 nuevos)
+
+================================================================================
+FOLIOS NACIONALES (2)
+================================================================================
+
+┌──────────┬──────────────────┬─────────────────┬────────────┬──────────────┐
+│ Folio    │ Placa            │ Fecha Compra    │ Fecha Inic │ Costo        │
+│          │                  │                 │ Deprec     │ Revaluado    │
+├──────────┼──────────────────┼─────────────────┼────────────┼──────────────┤
+│ 2963225  │ AA68082          │ 01-abr-2025     │ 01-abr-2025│ $1,500.00    │
+│          │ Descripcion corta│ (MES 4 - ABRIL) │            │              │
+│          │                  │ ✅ ANTES JUNIO  │            │              │
+├──────────┼──────────────────┼─────────────────┼────────────┼──────────────┤
+│ 2963241  │ ESD43301         │ 01-jun-2025     │ 01-jul-2025│ $55,791.87   │
+│          │ 1 TABLERO        │ (MES 6 - JUNIO) │            │              │
+│          │                  │ ✅ DESP JUNIO   │            │              │
+└──────────┴──────────────────┴─────────────────┴────────────┴──────────────┘
+
+CARACTERÍSTICAS NACIONALES:
+---------------------------
+- ID_PAIS = 1 (Nacional)
+- ID_COMPANIA = 188
+- Status: P (Pendiente)
+- Tienen COSTO_CALCULO4 > 0
+- Depreciación tipo 2 (Fiscal)
+
+================================================================================
+FOLIOS EXTRANJEROS (2)
+================================================================================
+
+┌──────────┬──────────────────┬─────────────────┬────────────┬──────────────┐
+│ Folio    │ Placa            │ Fecha Compra    │ Fecha Inic │ Costo        │
+│          │                  │                 │ Deprec     │ Reexpresado  │
+├──────────┼──────────────────┼─────────────────┼────────────┼──────────────┤
+│ 2963223  │ AG18016          │ 04-abr-2025     │ NULL       │ $20,000.00   │
+│          │ Descripción Corta│ (MES 4 - ABRIL) │            │ (Adquisición)│
+│          │ Activo Hijo      │ ✅ ANTES JUNIO  │            │              │
+│          │                  │ ID_PAIS = 5     │            │              │
+├──────────┼──────────────────┼─────────────────┼────────────┼──────────────┤
+│ 2963242  │ ESD43302         │ 01-jun-2025     │ 01-jul-2025│ $3,166.00    │
+│          │ 1 DYNALAB        │ (MES 6 - JUNIO) │            │ (Reexpresado)│
+│          │                  │ ✅ DESP JUNIO   │            │              │
+│          │                  │ ID_PAIS = 2     │            │              │
+└──────────┴──────────────────┴─────────────────┴────────────┴──────────────┘
+
+CARACTERÍSTICAS EXTRANJEROS:
+----------------------------
+- ID_PAIS > 1 (Extranjeros: 2, 5)
+- ID_COMPANIA = 188
+- Status: P (Pendiente)
+- Tienen COSTO_REEXPRESADO o COSTO_ADQUISICION > 0
+- Depreciación tipo 3 (USGAAP)
+
+================================================================================
+ESCENARIOS CUBIERTOS PARA AUTOTEST
+================================================================================
+
+Los 4 folios permiten crear casos AutoTest para estos escenarios:
+
+ESCENARIO 1: ALTA ANTES DE JUNIO (Afecta cálculo Safe Harbor)
+--------------------------------------------------------------
+✅ Nacional:   Folio 2963225
+   - Alta abril-2025 (mes 4)
+   - Depreciación parcial en 2025 (4 meses menos)
+   - Factor Safe Harbor: usa INPC junio-2025
+
+✅ Extranjero: Folio 2963223
+   - Alta abril-2025 (mes 4)
+   - Depreciación parcial en 2025
+   - Factor SH: usa Tipo Cambio junio-2025
+
+ESCENARIO 2: ALTA DESPUÉS DE JUNIO (No afecta Safe Harbor)
+-----------------------------------------------------------
+✅ Nacional:   Folio 2963241
+   - Alta junio-2025 (mes 6)
+   - Inicia depreciación julio-2025
+   - Depreciación parcial en 2025 (6 meses)
+   - Factor Safe Harbor: misma lógica que fiscal
+
+✅ Extranjero: Folio 2963242
+   - Alta junio-2025 (mes 6)
+   - Inicia depreciación julio-2025
+   - Depreciación parcial en 2025
+   - Factor SH: mismo que fiscal
+
+================================================================================
+PRÓXIMOS PASOS
+================================================================================
+
+PASO 1: Ejecutar ETL para Compañía 188
+---------------------------------------
+curl -X POST http://localhost:5071/api/etl/188/2025
+
+PASO 2: Verificar que los 4 folios se importaron
+-------------------------------------------------
+SELECT TOP 10 ID_NUM_ACTIVO, ID_ACTIVO, DESCRIPCION, FECHA_COMPRA,
+       FECHA_INIC_DEPREC, FECHA_INIC_DEPREC3, ID_PAIS
+FROM Staging_Activo
+WHERE ID_NUM_ACTIVO IN (2963225, 2963241, 2963223, 2963242)
+ORDER BY ID_PAIS, FECHA_COMPRA
+
+PASO 3: Ejecutar cálculos
+--------------------------
+curl -X POST http://localhost:5071/api/calcular/188/2025
+
+PASO 4: Verificar resultados en Calculo_RMF
+--------------------------------------------
+SELECT TOP 10 ID_NUM_ACTIVO, MOI, Tasa_Anual,
+       Dep_Acum_Inicio, Dep_Fiscal_Ejercicio,
+       Factor_Actualizacion_Saldo, Factor_SH,
+       Valor_Reportable_MXN, Valor_SH_Reportable
+FROM Calculo_RMF
+WHERE Año = 2025
+  AND ID_NUM_ACTIVO IN (2963225, 2963241, 2963223, 2963242)
+ORDER BY ID_Pais, ID_NUM_ACTIVO
+
+PASO 5: Crear nuevos casos AutoTest
+------------------------------------
+Basado en los valores calculados, crear INSERT scripts para:
+- Caso 4: Alta antes junio (Nacional) - Folio 2963225
+- Caso 5: Alta antes junio (Extranjero) - Folio 2963223
+- Caso 6: Alta después junio (Nacional) - Folio 2963241
+- Caso 7: Alta después junio (Extranjero) - Folio 2963242
+
+================================================================================
+DOCUMENTACIÓN TÉCNICA
+================================================================================
+
+CRITERIOS DE SELECCIÓN NACIONALES:
+-----------------------------------
+WHERE ID_COMPANIA = 188
+  AND YEAR(FECHA_COMPRA) = 2025
+  AND ID_PAIS = 1
+  AND (ISNULL(COSTO_CALCULO4, 0) > 0 OR ISNULL(COSTO_ADQUISICION, 0) > 0)
+
+CRITERIOS DE SELECCIÓN EXTRANJEROS:
+------------------------------------
+WHERE ID_COMPANIA = 188
+  AND YEAR(FECHA_COMPRA) = 2025
+  AND ID_PAIS > 1
+  AND (ISNULL(COSTO_REEXPRESADO, 0) > 0 OR ISNULL(COSTO_ADQUISICION, 0) > 0)
+
+POSICIONES EN ETL QUERY:
+------------------------
+Folio 2963223 (Extranjero): Posición 4042
+Folio 2963242 (Extranjero): Posición 4093
+Folio 2963225 (Nacional):   Posición 4720
+Folio 2963241 (Nacional):   Posición 4771
+
+VALIDACIÓN:
+-----------
+Query_ETL actualizado: ✅
+Total activos en filtro: 90
+Longitud Query_ETL: ~6,900 caracteres
+
+================================================================================
+CASOS AUTOTEST EXISTENTES (3)
+================================================================================
+
+Caso 1: Folio 50847  - Edificio totalmente depreciado (Tasa 5%)
+Caso 2: Folio 50909  - Vehículo totalmente depreciado (Tasa 25%) ⚠️ ELIMINAR
+Caso 3: Folio 206122 - Activo en depreciación activa (Tasa 10%)
+
+CASOS AUTOTEST PROPUESTOS (Basados en ciclo de vida)
+=====================================================
+
+[ ] Caso 1: Activo totalmente depreciado + 10% MOI (Nacional)
+[ ] Caso 2: Activo totalmente depreciado + 10% MOI (Extranjero)
+[ ] Caso 3: Activo en depreciación activa (Nacional)
+[ ] Caso 4: Activo en depreciación activa (Extranjero)
+[ ] Caso 5: Alta antes de junio 2025 (Nacional) - Folio 2963225 ✅
+[ ] Caso 6: Alta antes de junio 2025 (Extranjero) - Folio 2963223 ✅
+[ ] Caso 7: Alta después de junio 2025 (Nacional) - Folio 2963241 ✅
+[ ] Caso 8: Alta después de junio 2025 (Extranjero) - Folio 2963242 ✅
+[ ] Caso 9: Dado de baja en 2025 con saldo (Nacional) - NO DISPONIBLE
+[ ] Caso 10: Dado de baja en 2025 con saldo (Extranjero) - NO DISPONIBLE
+[ ] Caso 11: Termina depreciar en 2025 (Nacional)
+[ ] Caso 12: Termina depreciar en 2025 (Extranjero)
+
+================================================================================

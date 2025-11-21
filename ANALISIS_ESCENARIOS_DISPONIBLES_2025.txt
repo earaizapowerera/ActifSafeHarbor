@@ -1,0 +1,128 @@
+================================================================================
+ANÁLISIS DE ESCENARIOS DISPONIBLES - DATOS 2025
+ActifRMF - Casos AutoTest
+Fecha: 20-nov-2025
+================================================================================
+
+ESCENARIOS SOLICITADOS vs DISPONIBILIDAD EN DATOS
+==================================================
+
+┌─────────────────────────────────────────┬──────────────┬──────────────┐
+│ Escenario                               │ Nacional     │ Extranjero   │
+├─────────────────────────────────────────┼──────────────┼──────────────┤
+│ 1. Totalmente depreciado                │ ✅ 50847     │ ✅ 70590     │
+│    (Aplica 10% MOI)                     │              │              │
+├─────────────────────────────────────────┼──────────────┼──────────────┤
+│ 2. Depreciación activa                  │ ✅ 206122    │ ✅ 204220    │
+│    (Fecha fin > 2026-01-01)             │ Fin: 2032    │ Sin fecha    │
+├─────────────────────────────────────────┼──────────────┼──────────────┤
+│ 3. Baja en 2025 CON SALDO >10% MOI      │ ❌ NO EXISTE │ ❌ NO EXISTE │
+├─────────────────────────────────────────┼──────────────┼──────────────┤
+│ 4. Termina depreciar en 2025            │ ✅ 192430    │ ❓ Verificar │
+│    (Depreciación parcial)               │ Fin: may-25  │              │
+├─────────────────────────────────────────┼──────────────┼──────────────┤
+│ 5. Alta marzo-2025                      │ ❌ NO EXISTE │ ❌ NO EXISTE │
+├─────────────────────────────────────────┼──────────────┼──────────────┤
+│ 6. Alta julio-2025                      │ ❌ NO EXISTE │ ❌ NO EXISTE │
+└─────────────────────────────────────────┴──────────────┴──────────────┘
+
+LIMITACIONES DE LOS DATOS ACTUALES
+===================================
+
+1. ❌ NO hay activos adquiridos en 2025
+   - Los datos de adquisición llegan hasta 2024
+   - No se pueden probar escenarios de alta en 2025
+
+2. ❌ NO hay activos dados de baja en 2025 CON SALDO
+   - Solo hay 1 baja en 2025: Folio 70001
+   - Pero está totalmente depreciado (saldo = $0)
+
+3. ⚠️  Activos extranjeros con datos limitados
+   - Muchos tienen tasa 0% (no deprecian)
+   - Muchos no tienen Fecha_Fin_Depreciacion
+   - Hay registros duplicados en la tabla
+
+ESCENARIOS ALTERNATIVOS DISPONIBLES
+====================================
+
+En lugar de los escenarios 3, 5 y 6 que NO existen, podemos usar:
+
+ALTERNATIVA 1: Alta reciente (2024)
+------------------------------------
+Nacional:  220403 - Alta julio-2024
+Extranjero: 223318 - Alta dic-2024 (tasa 0%, especial)
+            216310 - Alta ene-2024 (tasa 10%, normal)
+
+ALTERNATIVA 2: Baja en 2025 (totalmente depreciado)
+-----------------------------------------------------
+Nacional:  70001 - Baja feb-2025 (totalmente depreciado)
+Extranjero: ❌ No hay
+
+ALTERNATIVA 3: Casos especiales
+---------------------------------
+- Activo con tasa 30% (vida corta): 192430
+- Activo con tasa 0% (no deprecia): 223318 extranjero
+
+PROPUESTA AJUSTADA DE CASOS
+============================
+
+Basándome en los datos REALES disponibles:
+
+CASOS NACIONALES (6):
+---------------------
+1. ✅ Totalmente depreciado          - 50847  (Tasa 5%, fin 2016)
+2. ✅ Depreciación activa            - 206122 (Tasa 10%, fin 2032)
+3. ✅ Termina depreciar en año       - 192430 (Tasa 30%, fin may-2025)
+4. ✅ Baja en año (depreciado)       - 70001  (Baja feb-2025)
+5. ✅ Alta reciente (2024 jul)       - 220403 (Tasa 30%, alta jul-2024)
+6. ⚠️  [FALTA] Alta en año actual    - NO DISPONIBLE
+
+CASOS EXTRANJEROS (6):
+----------------------
+1. ✅ Totalmente depreciado          - 70590  (Tasa 10%)
+2. ✅ Depreciación activa            - 204220 (Tasa 8%)
+3. ⚠️  Termina depreciar en año      - Verificar disponibilidad
+4. ⚠️  Baja en año                   - NO DISPONIBLE
+5. ✅ Alta reciente (2024 ene)       - 216310 (Tasa 10%)
+6. ✅ Alta reciente especial (2024)  - 223318 (Tasa 0% - no deprecia)
+
+TOTAL: 10-12 casos (depende de disponibilidad de extranjeros)
+
+RECOMENDACIONES
+===============
+
+OPCIÓN A: Usar solo casos disponibles (10 casos)
+-------------------------------------------------
+- 5 casos nacionales (excluir "Alta en año actual")
+- 5 casos extranjeros (excluir "Baja en año")
+- Total: 10 casos bien documentados
+
+OPCIÓN B: Crear datos sintéticos para casos faltantes
+------------------------------------------------------
+- Insertar manualmente activos con:
+  * Fecha adquisición marzo-2025
+  * Fecha adquisición julio-2025
+  * Fecha baja en 2025 con saldo > 10% MOI
+- Requiere coordinación con equipo de datos
+
+OPCIÓN C: Esperar a datos 2026
+-------------------------------
+- Los datos de 2026 (cuando estén disponibles) tendrán:
+  * Adquisiciones en 2026
+  * Bajas en 2026
+  * Más escenarios completos
+
+SIGUIENTE PASO SUGERIDO
+=======================
+
+Puedo proceder con OPCIÓN A (10 casos disponibles):
+
+1. Validar los 5 casos nacionales que ya tenemos
+2. Buscar y validar 5 casos extranjeros
+3. Documentar claramente qué escenarios están cubiertos
+4. Dejar placeholders para casos faltantes cuando haya datos
+
+¿Quieres que proceda con los 10 casos disponibles, o prefieres
+que exploremos crear datos sintéticos para los casos faltantes?
+
+================================================================================

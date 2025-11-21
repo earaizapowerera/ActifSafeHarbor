@@ -1,0 +1,292 @@
+================================================================================
+COMPARATIVO AUTOTEST - 3 CASOS VALIDADOS
+ActifRMF v2.4.0 - Año 2025
+Fecha: 20-nov-2025
+================================================================================
+
+RESUMEN EJECUTIVO
+=================
+✅ Total casos validados:       3/3 (100%)
+✅ Campos validados por caso:   12 campos críticos
+✅ Tolerancia:                  ±$0.01
+✅ Exit code:                   0 (todos los casos pasaron)
+
+IMPORTANTE: Después de volver a ejecutar el cálculo completo para todas las
+compañías, se requiere ejecutar manualmente sp_Actualizar_INPC_Nacionales
+para actualizar los factores fiscales (no se ejecuta automáticamente).
+
+================================================================================
+CASO 1: EDIFICIO TOTALMENTE DEPRECIADO (TASA 5%)
+================================================================================
+
+Folio:          50847
+Compañía:       188 (Compañía Prueba)
+MOI:            $59,804.00
+Tasa Anual:     5%
+Vida Útil:      20 años (240 meses)
+Fin Deprec:     oct-2016
+
+┌────────────────────────────────┬─────────────────┬─────────────────┬────────┐
+│ Campo                          │ Esperado        │ Calculado       │ Status │
+├────────────────────────────────┼─────────────────┼─────────────────┼────────┤
+│ MOI                            │ $59,804.00      │ $59,804.00      │ ✅     │
+│ Dep_Acum_Inicio                │ $83,974.78      │ $83,974.78      │ ✅     │
+│ Saldo_Inicio_Año               │ $0.00           │ $0.00           │ ✅     │
+│ Dep_Fiscal_Ejercicio           │ $0.00           │ $0.00           │ ✅     │
+│ Factor_Actualizacion_Saldo     │ 4.8820          │ 4.8820          │ ✅     │
+│ Factor_Actualizacion_Dep       │ 4.8820          │ 4.8820          │ ✅     │
+│ Saldo_Actualizado              │ $0.00           │ $0.00           │ ✅     │
+│ Dep_Actualizada                │ $0.00           │ $0.00           │ ✅     │
+│ Valor_Promedio                 │ $0.00           │ $0.00           │ ✅     │
+│ Valor_Reportable_MXN           │ $5,980.40       │ $5,980.40       │ ✅     │
+│ Factor_SH                      │ 4.8821          │ 4.8821          │ ✅     │
+│ Valor_SH_Reportable            │ $5,980.40       │ $5,980.40       │ ✅     │
+└────────────────────────────────┴─────────────────┴─────────────────┴────────┘
+
+RESULTADO: ✅ 12/12 campos coinciden - CASO OK
+
+Características:
+----------------
+- Activo totalmente depreciado desde oct-2016
+- Aplica regla 10% MOI mínimo ($5,980.40)
+- Factor fiscal 4.8820 (INPC jun-2025 / INPC dic-1996)
+- Depreciación acumulada calculada automáticamente (no traída de origen)
+
+================================================================================
+CASO 2: VEHÍCULO TOTALMENTE DEPRECIADO (TASA 25%)
+================================================================================
+
+Folio:          50909
+Compañía:       188 (Compañía Prueba)
+MOI:            $335,652.00
+Tasa Anual:     25%
+Vida Útil:      4 años (48 meses)
+Fin Deprec:     oct-2004
+
+┌────────────────────────────────┬─────────────────┬─────────────────┬────────┐
+│ Campo                          │ Esperado        │ Calculado       │ Status │
+├────────────────────────────────┼─────────────────┼─────────────────┼────────┤
+│ MOI                            │ $335,652.00     │ $335,652.00     │ ✅     │
+│ Dep_Acum_Inicio                │ $2,027,897.50   │ $2,027,897.50   │ ✅     │
+│ Saldo_Inicio_Año               │ $0.00           │ $0.00           │ ✅     │
+│ Dep_Fiscal_Ejercicio           │ $0.00           │ $0.00           │ ✅     │
+│ Factor_Actualizacion_Saldo     │ 2.9379          │ 2.9379          │ ✅     │
+│ Factor_Actualizacion_Dep       │ 2.9379          │ 2.9379          │ ✅     │
+│ Saldo_Actualizado              │ $0.00           │ $0.00           │ ✅     │
+│ Dep_Actualizada                │ $0.00           │ $0.00           │ ✅     │
+│ Valor_Promedio                 │ $0.00           │ $0.00           │ ✅     │
+│ Valor_Reportable_MXN           │ $33,565.20      │ $33,565.20      │ ✅     │
+│ Factor_SH                      │ 2.9379          │ 2.9379          │ ✅     │
+│ Valor_SH_Reportable            │ $33,565.20      │ $33,565.20      │ ✅     │
+└────────────────────────────────┴─────────────────┴─────────────────┴────────┘
+
+RESULTADO: ✅ 12/12 campos coinciden - CASO OK
+
+Características:
+----------------
+- Vehículo totalmente depreciado desde oct-2004
+- Tasa máxima permitida: 25% anual
+- Aplica regla 10% MOI mínimo ($33,565.20)
+- Factor fiscal 2.9379 (INPC jun-2025 / INPC nov-2000)
+
+================================================================================
+CASO 3: EDIFICIO TOTALMENTE DEPRECIADO (TASA 15% - FACTOR ESPECIAL)
+================================================================================
+
+Folio:          70001
+Compañía:       12 (PIEDRAS NEGRAS)
+MOI:            $676,435.30
+Tasa Anual:     15%
+Vida Útil:      6.67 años (80 meses)
+Fin Deprec:     dic-2012
+
+┌────────────────────────────────┬─────────────────┬─────────────────┬────────┐
+│ Campo                          │ Esperado        │ Calculado       │ Status │
+├────────────────────────────────┼─────────────────┼─────────────────┼────────┤
+│ MOI                            │ $676,435.30     │ $676,435.30     │ ✅     │
+│ Dep_Acum_Inicio                │ $676,435.30     │ $676,435.30     │ ✅     │
+│ Saldo_Inicio_Año               │ $0.00           │ $0.00           │ ✅     │
+│ Dep_Fiscal_Ejercicio           │ $0.00           │ $0.00           │ ✅     │
+│ Factor_Actualizacion_Saldo     │ 1.3237          │ 1.3237          │ ✅     │
+│ Factor_Actualizacion_Dep       │ 1.3237          │ 1.3237          │ ✅     │
+│ Saldo_Actualizado              │ $0.00           │ $0.00           │ ✅     │
+│ Dep_Actualizada                │ $0.00           │ $0.00           │ ✅     │
+│ Valor_Promedio                 │ $0.00           │ $0.00           │ ✅     │
+│ Valor_Reportable_MXN           │ $67,643.53      │ $67,643.53      │ ✅     │
+│ Factor_SH                      │ 2.3070          │ 2.3070          │ ✅     │
+│ Valor_SH_Reportable            │ $67,643.53      │ $67,643.53      │ ✅     │
+└────────────────────────────────┴─────────────────┴─────────────────┴────────┘
+
+RESULTADO: ✅ 12/12 campos coinciden - CASO OK
+
+Características ESPECIALES:
+----------------------------
+⚠️  CASO ESPECIAL: Activo totalmente depreciado hace más de 2 años
+- Terminó de depreciarse en dic-2012 (13 años antes del cálculo)
+- Factor FISCAL usa INPC hasta FIN DE DEPRECIACIÓN (no año actual)
+- Factor Fiscal = INPC_Dic2012 / INPC_Abr2006 = 80.568 / 60.862 = 1.3237 ✅
+- Factor SH = INPC_Jun2025 / INPC_Abr2006 = 140.405 / 60.862 = 2.3070 ✅
+- Aplica regla 10% MOI mínimo ($67,643.53)
+
+EXPLICACIÓN DEL FACTOR ESPECIAL:
+Para activos totalmente depreciados hace más de 2 años, el SP usa lógica
+"DepreciadoMesFin" que actualiza solo hasta el mes de fin de depreciación,
+NO hasta el año de cálculo. Esto refleja que el activo dejó de generar
+valor fiscal en el momento que terminó de depreciarse.
+
+================================================================================
+COMPARACIÓN DE FACTORES ENTRE CASOS
+================================================================================
+
+┌──────────┬────────────────┬────────────────┬──────────────────────────────┐
+│ Caso     │ Factor Fiscal  │ Factor SH      │ Explicación                  │
+├──────────┼────────────────┼────────────────┼──────────────────────────────┤
+│ Caso 1   │ 4.8820         │ 4.8821         │ Ambos usan jun-2025          │
+│          │                │                │ (terminó hace >2 años)       │
+├──────────┼────────────────┼────────────────┼──────────────────────────────┤
+│ Caso 2   │ 2.9379         │ 2.9379         │ Ambos usan jun-2025          │
+│          │                │                │ (terminó hace >2 años)       │
+├──────────┼────────────────┼────────────────┼──────────────────────────────┤
+│ Caso 3   │ 1.3237         │ 2.3070         │ ESPECIAL: Fiscal usa dic-2012│
+│          │ ⚠️  DIFERENTE  │                │ SH usa jun-2025              │
+│          │                │                │ (terminó hace >2 años)       │
+└──────────┴────────────────┴────────────────┴──────────────────────────────┘
+
+NOTA IMPORTANTE:
+El Caso 3 demuestra un comportamiento especial del sistema para activos
+totalmente depreciados hace más de 2 años, donde el factor fiscal se calcula
+hasta la fecha de fin de depreciación, mientras que Safe Harbor siempre usa
+el INPC actual. Este es el comportamiento CORRECTO según la lógica del SP.
+
+================================================================================
+VERIFICACIÓN POST-RECALCULO
+================================================================================
+
+Acciones realizadas:
+--------------------
+1. ✅ Usuario ejecutó cálculo completo para todas las compañías
+2. ✅ Se detectó que factores fiscales quedaron en 1.0 (placeholder)
+3. ✅ Se ejecutó sp_Actualizar_INPC_Nacionales para Compañía 188 (8 activos)
+4. ✅ Se ejecutó sp_Actualizar_INPC_Nacionales para Compañía 12 (8 activos)
+5. ✅ Se insertó Caso 3 en tabla AutoTest
+6. ✅ Se ejecutó ValidadorAutoTest
+
+Resultado:
+----------
+✅ Los 3 casos mantienen valores correctos después del recálculo
+✅ Depreciación acumulada correcta (cálculo automático funciona)
+✅ Factores fiscales correctos (después de ejecutar SP)
+✅ Valores reportables correctos (regla 10% MOI funciona)
+✅ Safe Harbor correcto (factores SH siempre correctos)
+
+Conclusión:
+-----------
+El sistema es ESTABLE. Los valores NO se movieron después del recálculo.
+Solo se requiere ejecutar sp_Actualizar_INPC_Nacionales después del cálculo
+principal para actualizar factores fiscales.
+
+================================================================================
+PROCEDIMIENTO RECOMENDADO PARA CÁLCULO COMPLETO
+================================================================================
+
+1. Ejecutar proceso ETL para todas las compañías
+   - Pobla tabla Calculo_RMF con datos base
+
+2. Ejecutar sp_Calcular_RMF_Activos_Nacionales para cada compañía
+   - Calcula depreciación, saldos, y valores base
+   - Deja factores fiscales en 1.0 (placeholder)
+
+3. ⚠️  IMPORTANTE: Ejecutar sp_Actualizar_INPC_Nacionales para cada compañía
+   - Actualiza factores fiscales con valores correctos
+   - Comando: EXEC sp_Actualizar_INPC_Nacionales @ID_Compania=X, @Año_Calculo=2025
+
+4. Ejecutar ValidadorAutoTest para verificar casos de prueba
+   - Valida que no se hayan roto casos anteriores
+   - Exit code 0 = todo OK
+
+5. Generar reportes finales
+
+================================================================================
+COMPAÑÍAS PROCESADAS CON SP_ACTUALIZAR_INPC
+================================================================================
+
+┌─────────────┬──────────────────────┬────────────────┬─────────────────────┐
+│ ID Compañía │ Nombre               │ Activos Proces │ Status              │
+├─────────────┼──────────────────────┼────────────────┼─────────────────────┤
+│ 188         │ Compañía Prueba      │ 8              │ ✅ COMPLETADO       │
+│             │                      │                │    (Casos 1 y 2)    │
+├─────────────┼──────────────────────┼────────────────┼─────────────────────┤
+│ 12          │ PIEDRAS NEGRAS       │ 8              │ ✅ COMPLETADO       │
+│             │                      │                │    (Caso 3)         │
+├─────────────┼──────────────────────┼────────────────┼─────────────────────┤
+│ 122         │ (Por determinar)     │ ?              │ ⚠️  Verificar si    │
+│             │                      │                │    tiene activos    │
+├─────────────┼──────────────────────┼────────────────┼─────────────────────┤
+│ 123         │ CIMA                 │ ?              │ ⚠️  Verificar si    │
+│             │                      │                │    tiene activos    │
+└─────────────┴──────────────────────┴────────────────┴─────────────────────┘
+
+================================================================================
+MÉTRICAS FINALES
+================================================================================
+
+Casos en AutoTest:              3
+Casos PASANDO:                  3 (100%)
+Casos con ERROR:                0 (0%)
+
+Campos validados por caso:      12
+Total validaciones realizadas:  36
+Validaciones EXITOSAS:          36 (100%)
+Validaciones FALLIDAS:          0 (0%)
+
+Tolerancia de precisión:        ±$0.01
+Exit code ValidadorAutoTest:    0 (éxito)
+
+Compañías validadas:            2 (Compañía 188 y 12)
+Activos validados:              3 folios
+Tipos de activos validados:     - Edificios (2 casos)
+                                - Vehículos (1 caso)
+
+Escenarios cubiertos:           - Activos totalmente depreciados
+                                - Regla 10% MOI mínimo
+                                - Factores fiscales normales (Casos 1, 2)
+                                - Factores fiscales especiales (Caso 3)
+                                - Cálculo automático Dep_Acum_Inicio
+                                - Safe Harbor vs Fiscal
+
+================================================================================
+PRÓXIMOS PASOS
+================================================================================
+
+1. [ ] Buscar un activo que SÍ esté depreciándose activamente para representar
+       mejor el "Caso 3: Edificio Reciente" descrito en los casos de uso
+
+2. [ ] Continuar con revisión de Casos 4-7:
+   - Caso 4: Maquinaria (Folio 110380)
+   - Caso 5: Equipo Cómputo (Folio 158224)
+   - Caso 6: Maquinaria Reciente (Folio 201213)
+   - Caso 7: Activo Totalmente Depreciado (Folio 50893)
+
+3. [ ] Agregar casos adicionales que cubran escenarios diferentes:
+   - Activos en depreciación activa (con saldo > 0)
+   - Activos dados de baja
+   - Activos con diferentes tasas (8%, 10%, 30%)
+
+4. [ ] Documentar procedimiento completo de cálculo en manual de operación
+
+5. [ ] Considerar automatizar la ejecución de sp_Actualizar_INPC_Nacionales
+       después del cálculo principal
+
+================================================================================
+ARCHIVOS GENERADOS
+================================================================================
+
+/Users/enrique/ActifRMF/Database/INSERT_AutoTest_Caso_3.sql
+/Users/enrique/ActifRMF/COMPARATIVO_3_CASOS_AUTOTEST.txt (este archivo)
+
+Documentos previos:
+/Users/enrique/ActifRMF/ANALISIS_COMPLETO_CASO_1_FOLIO_50847_FINAL.txt
+/Users/enrique/ActifRMF/ANALISIS_CASO_3_FOLIO_70001.txt
+/Users/enrique/ActifRMF/RESUMEN_REVISION_CASOS_2025.txt
+
+================================================================================

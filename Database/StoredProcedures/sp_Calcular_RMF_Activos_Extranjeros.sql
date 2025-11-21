@@ -34,12 +34,20 @@ BEGIN
     DECLARE @RegistrosProcesados INT = 0;
 
     PRINT '========================================';
-    PRINT 'Iniciando cálculo RMF Activos Extranjeros v5.0';
+    PRINT 'Iniciando cálculo RMF Activos Extranjeros v5.1';
     PRINT 'Compañía: ' + CAST(@ID_Compania AS VARCHAR(10));
     PRINT 'Año: ' + CAST(@Año_Calculo AS VARCHAR(10));
     PRINT '========================================';
 
-    -- 1. Obtener tipo de cambio del 30 de junio del año actual
+    -- 1. Eliminar cálculos previos de esta compañía/año (extranjeros)
+    DELETE FROM Calculo_RMF
+    WHERE ID_Compania = @ID_Compania
+      AND Año_Calculo = @Año_Calculo
+      AND Tipo_Activo = 'Extranjero';
+
+    PRINT 'Cálculos previos eliminados: ' + CAST(@@ROWCOUNT AS VARCHAR(10));
+
+    -- 2. Obtener tipo de cambio del 30 de junio del año actual
     SELECT TOP 1 @TipoCambio_30Jun = Tipo_Cambio
     FROM Tipo_Cambio
     WHERE Año = @Año_Calculo
@@ -104,6 +112,7 @@ BEGIN
         Aplica_Regla_10Pct BIT,
         Ruta_Calculo NVARCHAR(20),
         Descripcion_Ruta NVARCHAR(200),
+        Observaciones NVARCHAR(500),
         Usa_Calculo_Tipo2 BIT
     );
 
@@ -265,15 +274,22 @@ BEGIN
     SET Proporcion = (Monto_Pendiente / 12.0) * Meses_Uso_Ejercicio;
 
     -- 10. APLICAR REGLA DEL MAYOR (Proporción vs 10% MOI)
+    -- NOTA: Para activos dados de baja NO aplica la regla del 10% MOI
     UPDATE #ActivosCalculo
     SET Prueba_10Pct = MOI * 0.10,
         Valor_USD =
             CASE
+                -- Activos dados de baja: usar Proporción directamente (no aplicar 10% MOI)
+                WHEN FECHA_BAJA IS NOT NULL AND YEAR(FECHA_BAJA) = @Año_Calculo THEN Proporcion
+                -- Activos normales: regla del mayor
                 WHEN Proporcion > (MOI * 0.10) THEN Proporcion
                 ELSE MOI * 0.10
             END,
         Aplica_Regla_10Pct =
             CASE
+                -- Activos dados de baja: NO aplica regla 10% MOI
+                WHEN FECHA_BAJA IS NOT NULL AND YEAR(FECHA_BAJA) = @Año_Calculo THEN 0
+                -- Activos normales: aplicar si Proporción <= 10% MOI
                 WHEN Proporcion <= (MOI * 0.10) THEN 1
                 ELSE 0
             END;
@@ -301,7 +317,24 @@ BEGIN
                 ELSE 'Activo en uso normal en ' + CAST(@Año_Calculo AS VARCHAR(10))
             END;
 
-    -- 13. Insertar resultados en Calculo_RMF
+    -- 13. Generar Observaciones
+    UPDATE #ActivosCalculo
+    SET Observaciones =
+            CASE
+                -- Activos dados de baja
+                WHEN FECHA_BAJA IS NOT NULL AND YEAR(FECHA_BAJA) = @Año_Calculo THEN
+                    'Baja ' + CONVERT(VARCHAR(10), FECHA_BAJA, 103) + '. Proporción: $' + FORMAT(Proporcion, 'N2') + ' USD = $' + FORMAT(Valor_MXN, 'N2') + ' MXN (TC ' + CAST(@TipoCambio_30Jun AS VARCHAR(10)) + ')'
+
+                -- Activos con regla 10% MOI
+                WHEN Aplica_Regla_10Pct = 1 THEN
+                    'Aplica regla 10% MOI (Art 182 LISR): $' + FORMAT(Prueba_10Pct, 'N2') + ' USD > $' + FORMAT(Proporcion, 'N2') + ' USD. Valor: $' + FORMAT(Valor_MXN, 'N2') + ' MXN'
+
+                -- Activos normales
+                ELSE
+                    'Proporción: $' + FORMAT(Proporcion, 'N2') + ' USD > 10% MOI ($' + FORMAT(Prueba_10Pct, 'N2') + '). Valor: $' + FORMAT(Valor_MXN, 'N2') + ' MXN (TC ' + CAST(@TipoCambio_30Jun AS VARCHAR(10)) + ')'
+            END;
+
+    -- 14. Insertar resultados en Calculo_RMF
     INSERT INTO Calculo_RMF (
         ID_Staging,
         ID_Compania,
@@ -334,6 +367,7 @@ BEGIN
         Fecha_Inicio_Depreciacion,
         Fecha_Fin_Depreciacion,
         Fecha_Baja,
+        Observaciones,
         Fecha_Calculo,
         Version_SP
     )
@@ -369,8 +403,9 @@ BEGIN
         FECHA_INIC_DEPREC_3,
         FECHA_FIN_DEPREC,
         FECHA_BAJA,
+        Observaciones,
         GETDATE(),
-        'v5.0-FECHA-FIN-DEP'
+        'v5.1-OBS-BAJA-FIX'
     FROM #ActivosCalculo
     WHERE Valor_MXN IS NOT NULL;
 

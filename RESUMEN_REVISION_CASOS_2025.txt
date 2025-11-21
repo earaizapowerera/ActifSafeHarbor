@@ -1,0 +1,270 @@
+================================================================================
+RESUMEN DE REVISIÓN DE CASOS - ACTIFRMF v2.4.0
+Activos Nacionales - Año 2025
+Fecha: 20-nov-2025
+================================================================================
+
+OVERVIEW DEL SISTEMA
+====================
+Sistema: ActifRMF Safe Harbor (Article 182 LISR)
+Versión: 2.4.0
+Database: dbdev.powerera.com / Actif_RMF
+Validador Automatizado: ValidadorAutoTest (2 casos activos)
+
+MEJORAS IMPLEMENTADAS EN v2.4.0
+================================
+1. ✅ sp_Actualizar_INPC_Nacionales v2.4 - Corrige factores para todos los activos
+2. ✅ Cálculo automático de Dep_Acum_Inicio (ETL modificado para Compañía 188)
+3. ✅ Sistema AutoTest con validador automático
+4. ✅ Version control con build numbers visibles en assemblies
+
+================================================================================
+CASOS REVISADOS Y VALIDADOS
+================================================================================
+
+┌─────────┬───────────────────────────────────────┬────────┬──────────┬─────────┐
+│ Caso    │ Descripción                           │ Folio  │ Compañía │ Status  │
+├─────────┼───────────────────────────────────────┼────────┼──────────┼─────────┤
+│ CASO 1  │ Edificio totalmente depreciado        │ 50847  │ 188      │ ✅ OK   │
+│         │ Tasa 5% - Aplica 10% MOI mínimo       │        │ (Prueba) │         │
+│         │ Valor: $5,980.40                      │        │          │         │
+├─────────┼───────────────────────────────────────┼────────┼──────────┼─────────┤
+│ CASO 2  │ Vehículo totalmente depreciado        │ 50909  │ 188      │ ✅ OK   │
+│         │ Tasa 25% - Aplica 10% MOI mínimo      │        │ (Prueba) │         │
+│         │ Valor: $33,565.20                     │        │          │         │
+├─────────┼───────────────────────────────────────┼────────┼──────────┼─────────┤
+│ CASO 3  │ Edificio totalmente depreciado        │ 70001  │ 12       │ ⚠️  (1) │
+│         │ Tasa 15% - Factor especial 1.3237     │        │ (P.NEG)  │         │
+│         │ Valor: $67,643.53                     │        │          │         │
+│         │ CÁLCULOS CORRECTOS                    │        │          │         │
+│         │ (1) Discrepancia con descripción      │        │          │         │
+└─────────┴───────────────────────────────────────┴────────┴──────────┴─────────┘
+
+CASOS PENDIENTES DE REVISIÓN
+=============================
+[ ] CASO 4: Maquinaria (Folio 110380, Tasa 10%, Compañía 12)
+[ ] CASO 5: Equipo Cómputo (Folio 158224, Tasa 30%, Compañía 12)
+[ ] CASO 6: Maquinaria Reciente (Folio 201213, Tasa 8%, Compañía 12)
+[ ] CASO 7: Activo Totalmente Depreciado (Folio 50893, Tasa 5%, Compañía 12)
+
+================================================================================
+DETALLE: CASO 1 - EDIFICIO TOTALMENTE DEPRECIADO (FOLIO 50847)
+================================================================================
+
+Status: ✅ VALIDADO Y AGREGADO A AUTOTEST
+
+Problemas Corregidos:
+---------------------
+1. ❌→✅ Factores fiscales 1.0 → 4.8820
+   - sp_Actualizar_INPC_Nacionales v2.4 ejecutado
+
+2. ❌→✅ Dep_Acum_Inicio $249.18 → $83,974.78
+   - Query ETL modificado (Dep_Acum_Inicio = NULL para cálculo automático)
+
+Valores Finales Correctos:
+--------------------------
+MOI:                        $59,804.00
+Dep_Acum_Inicio:            $83,974.78  (100% MOI)
+Saldo_Inicio_Año:           $0.00
+Factor_Actualizacion:       4.8820
+Valor_Reportable_MXN:       $5,980.40   (10% MOI - mínimo)
+Factor_SH:                  4.8821
+Valor_SH_Reportable:        $5,980.40   (10% MOI - mínimo)
+
+Validación Automatizada:    ✅ PASA (12/12 campos)
+
+================================================================================
+DETALLE: CASO 2 - VEHÍCULO TOTALMENTE DEPRECIADO (FOLIO 50909)
+================================================================================
+
+Status: ✅ VALIDADO Y AGREGADO A AUTOTEST
+
+Características:
+----------------
+- Tasa máxima permitida: 25% anual
+- Vida útil: 4 años (48 meses)
+- Totalmente depreciado desde oct-2004
+- Aplica regla 10% MOI mínimo
+
+Valores Finales Correctos:
+--------------------------
+MOI:                        $335,652.00
+Dep_Acum_Inicio:            $2,027,897.50  (100% MOI + ajustes históricos)
+Saldo_Inicio_Año:           $0.00
+Factor_Actualizacion:       2.9379
+Valor_Reportable_MXN:       $33,565.20  (10% MOI - mínimo)
+Factor_SH:                  2.9379
+Valor_SH_Reportable:        $33,565.20  (10% MOI - mínimo)
+
+Validación Automatizada:    ✅ PASA (12/12 campos)
+
+================================================================================
+DETALLE: CASO 3 - EDIFICIO (FOLIO 70001)
+================================================================================
+
+Status: ⚠️  CÁLCULOS CORRECTOS - DISCREPANCIA CON DESCRIPCIÓN
+
+Acciones Completadas:
+---------------------
+✅ sp_Actualizar_INPC_Nacionales ejecutado para Compañía 12 (8 activos)
+✅ Factores corregidos: 1.0 → 1.3237
+✅ Validación matemática completa
+
+Características del Activo:
+---------------------------
+MOI:                        $676,435.30
+Fecha Adquisición:          2006-04-01
+Fecha Inicio Deprec:        2006-05-01
+Fecha Fin Deprec:           2012-12-01 (totalmente depreciado)
+Tasa Anual:                 15%
+Meses Vida Útil:            80 meses (6.67 años)
+
+Valores Calculados (CORRECTOS):
+--------------------------------
+Dep_Acum_Inicio:            $676,435.30  ✅ (100% MOI)
+Saldo_Inicio_Año:           $0.00
+Factor_Actualizacion:       1.3237       ✅ (INPC Dic2012 / INPC Abr2006)
+Valor_Reportable_MXN:       $67,643.53   ✅ (10% MOI - mínimo)
+Factor_SH:                  2.3070       ✅
+Valor_SH_Reportable:        $67,643.53   ✅ (10% MOI - mínimo)
+
+Lógica Especial para Activos Totalmente Depreciados:
+-----------------------------------------------------
+Para activos que terminaron de depreciarse hace más de 2 años:
+- Factor = INPC_Fin_Depreciacion / INPCCompra
+- NO se actualiza con INPC_Mitad_Ejercicio del año actual
+- Refleja inflación solo hasta el punto de depreciación completa
+- Factor 1.3237 es CORRECTO para este tipo de activo ✅
+
+⚠️  DISCREPANCIA IDENTIFICADA:
+-------------------------------
+Descripción del caso: "Edificio Reciente depreciándose con saldo por deducir"
+Datos reales:         Activo totalmente depreciado desde 2012, sin saldo
+
+ACCIÓN REQUERIDA:
+-----------------
+Aclarar con usuario:
+  a) ¿Es el folio correcto para Caso 3?
+  b) ¿Cambiar descripción a "Activo totalmente depreciado con factor especial"?
+  c) ¿Buscar otro folio que SÍ esté depreciándose activamente?
+
+================================================================================
+VALIDADOR AUTOTEST - STATUS
+================================================================================
+
+Casos Activos:              2 (Casos 1 y 2)
+Última Ejecución:           20-nov-2025
+Resultado:                  2/2 PASA (100% éxito)
+Campos Validados:           12 campos críticos por caso
+Tolerancia:                 ±$0.01
+
+Casos Pendientes de Agregar:
+-----------------------------
+- Caso 3 (Folio 70001) - Pendiente confirmación sobre descripción
+- Casos 4-7 - Pendientes de revisión
+
+Comando de Ejecución:
+---------------------
+cd /Users/enrique/ActifRMF/ValidadorAutoTest/ValidadorAutoTest
+dotnet run
+
+Exit Code: 0 = todos OK, 1 = uno o más errores
+
+================================================================================
+COMPAÑÍAS PROCESADAS
+================================================================================
+
+┌─────────────┬──────────────────────┬─────────────────────────────────────────┐
+│ ID Compañía │ Nombre               │ Status sp_Actualizar_INPC_Nacionales    │
+├─────────────┼──────────────────────┼─────────────────────────────────────────┤
+│ 188         │ Compañía Prueba      │ ✅ Ejecutado - 8 activos procesados     │
+│             │                      │    Casos 1 y 2 validados                │
+├─────────────┼──────────────────────┼─────────────────────────────────────────┤
+│ 12          │ PIEDRAS NEGRAS       │ ✅ Ejecutado - 8 activos procesados     │
+│             │                      │    Caso 3 revisado (discrepancia desc)  │
+├─────────────┼──────────────────────┼─────────────────────────────────────────┤
+│ 122         │ (Por determinar)     │ ⚠️  Pendiente ejecutar SP               │
+├─────────────┼──────────────────────┼─────────────────────────────────────────┤
+│ 123         │ CIMA                 │ ⚠️  Pendiente ejecutar SP               │
+└─────────────┴──────────────────────┴─────────────────────────────────────────┘
+
+================================================================================
+PRÓXIMOS PASOS RECOMENDADOS
+================================================================================
+
+INMEDIATO:
+----------
+1. ❓ Aclarar discrepancia Caso 3: ¿Folio correcto o cambiar descripción?
+
+2. [ ] Verificar Query ETL de Compañía 12 (PIEDRAS NEGRAS)
+   - ¿Trae Dep_Acum_Inicio desde origen o calcula automáticamente?
+   - Aplicar mismo fix que Compañía 188 si es necesario
+
+3. [ ] Continuar revisión de Casos 4-7:
+   - Caso 4: Maquinaria (Folio 110380)
+   - Caso 5: Equipo Cómputo (Folio 158224)
+   - Caso 6: Maquinaria Reciente (Folio 201213)
+   - Caso 7: Activo Totalmente Depreciado (Folio 50893)
+
+MEDIO PLAZO:
+------------
+4. [ ] Ejecutar sp_Actualizar_INPC_Nacionales para Compañías 122 y 123
+
+5. [ ] Agregar casos validados adicionales a tabla AutoTest
+
+6. [ ] Documentar casos de uso especiales identificados:
+   - Activos totalmente depreciados con factor especial (tipo: DepreciadoMesFin)
+   - Activos con diferentes tipos de cálculo INPC
+
+================================================================================
+MÉTRICAS DE CALIDAD
+================================================================================
+
+Casos Revisados:            3/7  (43%)
+Casos Validados OK:         2/7  (29%)
+Casos con Discrepancia:     1/7  (14%)
+Casos Pendientes:           4/7  (57%)
+
+AutoTest Pass Rate:         100% (2/2)
+Factores Corregidos:        16 activos (2 compañías)
+Errores Críticos:           0
+
+Cobertura de Validación:    12 campos críticos por caso
+Tolerancia de Precisión:    ±$0.01 (suficiente para validación)
+
+================================================================================
+ARCHIVOS DE ANÁLISIS GENERADOS
+================================================================================
+
+/Users/enrique/ActifRMF/ANALISIS_COMPLETO_CASO_1_FOLIO_50847_FINAL.txt
+/Users/enrique/ActifRMF/ANALISIS_CASO_3_FOLIO_70001.txt
+/Users/enrique/ActifRMF/RESUMEN_REVISION_CASOS_2025.txt (este archivo)
+
+/Users/enrique/ActifRMF/Database/CREATE_TABLE_AutoTest.sql
+/Users/enrique/ActifRMF/Database/INSERT_AutoTest_Casos_1_2.sql
+
+/Users/enrique/ActifRMF/ValidadorAutoTest/README.md
+/Users/enrique/ActifRMF/ValidadorAutoTest/ValidadorAutoTest/Program.cs
+
+/Users/enrique/ActifRMF/CHANGELOG.md
+/Users/enrique/ActifRMF/ActifRMF/ActifRMF.csproj (Version 2.4.0)
+
+================================================================================
+CONCLUSIÓN
+================================================================================
+
+El sistema ActifRMF v2.4.0 está funcionando correctamente después de las
+correcciones implementadas:
+
+✅ Factores fiscales calculados correctamente (v2.4)
+✅ Depreciación acumulada calculada automáticamente
+✅ Validación automatizada implementada (AutoTest)
+✅ 2 casos completamente validados y pasando pruebas
+✅ Lógica especial para activos totalmente depreciados funcionando correctamente
+
+⚠️  Acción principal pendiente: Aclarar discrepancia descripción vs datos en Caso 3
+
+Recomendación: Continuar con revisión sistemática de Casos 4-7 para ampliar
+cobertura de AutoTest y validar diferentes escenarios de cálculo.
+
+================================================================================

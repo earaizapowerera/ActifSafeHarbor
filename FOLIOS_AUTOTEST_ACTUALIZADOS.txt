@@ -1,0 +1,239 @@
+================================================================================
+FOLIOS PARA AUTOTEST - CASOS BASADOS EN CICLO DE VIDA (ACTUALIZADO)
+ActifRMF v2.4.0 - Año Cálculo 2025
+Fecha: 20-nov-2025
+================================================================================
+
+RESUMEN EJECUTIVO
+=================
+✅ Folios encontrados con STATUS='A' (Activos) - NO usan status='P' (Pendiente)
+✅ Todos los folios verificados en origen (actif_web_cima_dev)
+✅ Compañía: 188
+
+NOTA IMPORTANTE:
+----------------
+Los folios con alta en 2025 tienen STATUS='P' (Pendiente) y NO se importan en el ETL.
+Se usan activos de 2022-2024 con STATUS='A' para representar escenarios de depreciación activa.
+
+================================================================================
+CASOS AUTOTEST - 6 ESCENARIOS × 2 ORÍGENES = 12 CASOS
+================================================================================
+
+ESCENARIO 1: TOTALMENTE DEPRECIADO + 10% MOI
+=============================================
+
+CASO 1: Nacional - Folio 50847 ✅ (Ya en ETL)
+----------------------------------------------
+Placa:          AG02850 - TERRENO PLANTA 30
+Fecha Compra:   01-ago-1983
+Status:         A (Activo)
+Costo:          $1,857,799
+Características:
+  - Totalmente depreciado en 2025
+  - Aplica regla 10% MOI mínimo
+  - Ya validado en Caso 1 AutoTest actual
+
+CASO 2: Extranjero - Folio 51484 ✅ (Agregar al ETL)
+-----------------------------------------------------
+Placa:          AA55172 - EDIFICIO PLANTA 160
+Fecha Compra:   01-ene-1984
+Status:         A (Activo)
+ID_PAIS:        2 (USA)
+Costo Adq:      $471,835
+Características:
+  - Totalmente depreciado en 2025
+  - Aplica regla 10% MOI mínimo
+  - Requiere configuración FECHA_INIC_DEPREC3
+
+ESCENARIO 2: DEPRECIACIÓN ACTIVA (Saldo > 10% MOI)
+===================================================
+
+CASO 3: Nacional - Folio 208312 ✅ (Agregar al ETL)
+----------------------------------------------------
+Placa:          ESD33354 - TROQUEL
+Fecha Compra:   25-abr-2023
+Fecha Inic Dep: 01-may-2023
+Status:         A (Activo)
+Costo:          $22,854.52
+Características:
+  - En depreciación activa en 2025
+  - Tiene saldo pendiente significativo
+  - NO aplica regla 10% MOI
+
+CASO 4: Extranjero - Folio 205815 ✅ (Agregar al ETL)
+------------------------------------------------------
+Placa:          ESD0032062 - DISCO PARA SERVIDOR
+Fecha Compra:   13-dic-2022
+Fecha Inic Dep3: 01-feb-2023
+Status:         A (Activo)
+ID_PAIS:        2 (USA)
+Costo Adq:      $12,699.98
+Características:
+  - En depreciación activa en 2025
+  - Tiene saldo pendiente
+  - NO aplica regla 10% MOI
+
+ESCENARIO 3: ALTA RECIENTE ANTES DE JUNIO (Nacional = 2023, Extranjero = Feb-2024)
+===================================================================================
+
+CASO 5: Nacional - Folio 208313 ✅ (Agregar al ETL)
+----------------------------------------------------
+Placa:          ESD33355 - TROQUEL
+Fecha Compra:   25-abr-2023 (ANTES de junio)
+Fecha Inic Dep: 01-may-2023
+Status:         A (Activo)
+Costo:          $22,854.52
+Características:
+  - Alta abril-2023
+  - En depreciación desde mayo-2023
+  - Representa escenario "alta antes de junio"
+
+CASO 6: Extranjero - Folio 2963156 ✅ (Agregar al ETL)
+-------------------------------------------------------
+Placa:          ES44PRUEBA - MODULES FOR OLTT
+Fecha Compra:   01-feb-2024 (ANTES de junio)
+Status:         A (Activo)
+ID_PAIS:        20
+Costo Adq:      $60,000
+Características:
+  - Alta febrero-2024
+  - Representa escenario "alta antes de junio"
+  - Sin fecha inicio deprec (requiere configuración)
+
+ESCENARIO 4: ALTA RECIENTE DESPUÉS DE JUNIO (Nacional = Jul-2023, Extranjero = Dic-2022)
+=========================================================================================
+
+CASO 7: Nacional - Folio 208314 ✅ (Agregar al ETL)
+----------------------------------------------------
+Placa:          ESD33356 - TROQUEL (otro troquel del mismo lote)
+Fecha Compra:   25-abr-2023
+Fecha Inic Dep: 01-may-2023
+Status:         A (Activo)
+Costo:          $22,854.52
+Características:
+  - Similar a otros troqueles
+  - En depreciación activa
+
+NOTA: No hay altas después de junio en 2023-2024 con status='A'
+Se usa un activo del mismo grupo (troqueles) para variedad
+
+CASO 8: Extranjero - Folio 205816 ✅ (Agregar al ETL)
+------------------------------------------------------
+Placa:          ESD0032069 - DISCO PARA SERVIDOR
+Fecha Compra:   13-dic-2022 (después de junio)
+Fecha Inic Dep3: 01-feb-2023
+Status:         A (Activo)
+ID_PAIS:        2 (USA)
+Costo Adq:      $12,699.98
+Características:
+  - Alta diciembre-2022
+  - Inicia deprec febrero-2023
+  - En depreciación activa
+
+ESCENARIO 5: BAJA EN 2025 CON SALDO > 10% MOI
+==============================================
+
+CASO 9: Nacional - Folio 2963158 ✅ (Agregar al ETL)
+-----------------------------------------------------
+Placa:          ESD32924 - 1 TABLERO DE CONTRUCCION
+Fecha Compra:   01-mar-2023
+Fecha Inic Dep: 01-abr-2023
+Fecha BAJA:     04-feb-2025 ⚠️
+Status:         B (Baja)
+Costo:          $30,000
+Características:
+  - Adquirido mar-2023
+  - Dado de BAJA feb-2025
+  - Solo 2 años de uso (debe tener saldo)
+  - INPC hasta mes anterior a baja (ene-2025)
+
+CASO 10: Extranjero - Folio 43668 ⚠️ (Verificar saldo)
+--------------------------------------------------------
+Placa:          AG18016 - 3174 IBM CONTROLLER
+Fecha Compra:   09-nov-2009
+Fecha Inic Dep3: 09-nov-2009
+Fecha BAJA:     27-may-2025
+Status:         B (Baja)
+ID_PAIS:        2 (USA)
+Costo Adq:      $350
+Características:
+  - Adquirido nov-2009
+  - Dado de BAJA may-2025
+  - 15+ años de uso (probablemente totalmente depreciado)
+  - ⚠️ Costo bajo, verificar si tiene saldo > 10% MOI
+
+ALTERNATIVA: Buscar otra baja extranjera más reciente
+
+ESCENARIO 6: TERMINA DEPRECIAR EN 2025
+=======================================
+
+CASO 11: Nacional - ⚠️ PENDIENTE BÚSQUEDA
+-------------------------------------------
+Criterios: Fecha_Fin_Deprec_2 en 2025
+
+CASO 12: Extranjero - ⚠️ PENDIENTE BÚSQUEDA
+---------------------------------------------
+Criterios: Fecha_Fin_Deprec_3 en 2025
+
+================================================================================
+FOLIOS A AGREGAR AL ETL - QUERY UPDATE
+================================================================================
+
+FOLIOS NUEVOS (8):
+------------------
+208312  - Nacional, depreciación activa (Caso 3)
+208313  - Nacional, alta abr-2023 (Caso 5)
+208314  - Nacional, depreciación activa (Caso 7)
+2963158 - Nacional, baja feb-2025 (Caso 9)
+
+51484   - Extranjero, totalmente depreciado (Caso 2)
+205815  - Extranjero, depreciación activa (Caso 4)
+2963156 - Extranjero, alta feb-2024 (Caso 6)
+205816  - Extranjero, depreciación activa (Caso 8)
+
+TOTAL: ETL actual 90 folios + 8 nuevos = 98 folios
+
+ACCIÓN REQUERIDA:
+-----------------
+Agregar estos 8 folios en la sección de compañía 188 del Query_ETL
+
+================================================================================
+CASOS AUTOTEST - ESTRUCTURA FINAL
+================================================================================
+
+ELIMINAR:
+---------
+❌ Caso 2 actual (Folio 50909) - Duplicado de Caso 1
+
+MANTENER:
+---------
+✅ Caso 1: Folio 50847  - Renombrar: "Nacional: Totalmente depreciado + 10% MOI"
+✅ Caso 3: Folio 206122 - Mantener:  "Nacional: Depreciación activa"
+
+AGREGAR NUEVOS (10):
+--------------------
+[ ] Caso 2:  Folio 51484   - "Extranjero: Totalmente depreciado + 10% MOI"
+[ ] Caso 4:  Folio 208312  - "Nacional: Depreciación activa (Troquel 2023)"
+[ ] Caso 5:  Folio 205815  - "Extranjero: Depreciación activa (Disco 2022)"
+[ ] Caso 6:  Folio 208313  - "Nacional: Alta antes junio (abr-2023)"
+[ ] Caso 7:  Folio 2963156 - "Extranjero: Alta antes junio (feb-2024)"
+[ ] Caso 8:  Folio 208314  - "Nacional: Alta después junio"
+[ ] Caso 9:  Folio 205816  - "Extranjero: Alta después junio (dic-2022)"
+[ ] Caso 10: Folio 2963158 - "Nacional: Baja en 2025 con saldo"
+[ ] Caso 11: Folio TBD     - "Extranjero: Baja en 2025 con saldo"
+[ ] Caso 12: Folio TBD     - "Nacional/Extranjero: Termina depreciar 2025"
+
+Total casos: 12 (10 definidos + 2 pendientes)
+
+================================================================================
+PRÓXIMO PASO
+================================================================================
+
+1. Agregar 8 folios al Query_ETL (compañía 188)
+2. Ejecutar ETL para compañía 188
+3. Ejecutar cálculo para compañía 188
+4. Verificar que los 8 folios se importaron y calcularon
+5. Consultar valores esperados de Calculo_RMF
+6. Crear INSERT scripts para AutoTest
+
+================================================================================

@@ -24,6 +24,24 @@ async function initCalculo() {
     if (form) {
         form.addEventListener('submit', ejecutarCalculo);
     }
+
+    // Event listeners para botones de selección
+    const btnSeleccionarTodas = document.getElementById('btnSeleccionarTodas');
+    const btnDeseleccionarTodas = document.getElementById('btnDeseleccionarTodas');
+
+    if (btnSeleccionarTodas) {
+        btnSeleccionarTodas.addEventListener('click', () => {
+            const checkboxes = document.querySelectorAll('#companiasChecklist input[type="checkbox"]');
+            checkboxes.forEach(cb => cb.checked = true);
+        });
+    }
+
+    if (btnDeseleccionarTodas) {
+        btnDeseleccionarTodas.addEventListener('click', () => {
+            const checkboxes = document.querySelectorAll('#companiasChecklist input[type="checkbox"]');
+            checkboxes.forEach(cb => cb.checked = false);
+        });
+    }
 }
 
 // Ejecutar inmediatamente si DOM ya está listo, o esperar al evento

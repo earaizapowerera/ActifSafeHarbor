@@ -56,7 +56,7 @@ class Program
 public class ETLActivos
 {
     // Connection string DESTINO (Actif_RMF) - siempre la misma
-    private const string ConnStrDestino = "Server=dbdev.powerera.com;Database=Actif_RMF;User Id=earaiza;Password=VgfN-n4ju?H1Z4#JFRE;TrustServerCertificate=True;";
+    private const string ConnStrDestino = "Server=dbdev.powerera.com;Database=Actif_RMF;User Id=earaiza;Password=VgfN-n4ju?H1Z4#JFRE;TrustServerCertificate=True;Connection Timeout=30;";
 
     // Connection string ORIGEN - se obtiene dinámicamente de ConfiguracionCompania por compañía
     // (Eliminado hardcoded, ahora se lee desde BD)
@@ -79,12 +79,15 @@ public class ETLActivos
             // 2. Limpiar datos previos de staging para esta compañía/año
             await LimpiarStagingPrevio(idCompania, añoCalculo);
 
-            // 3. Obtener tipo de cambio del 30 de junio
+            // 3. Limpiar procesos ETL colgados de esta compañía
+            await LimpiarProcesosColgados(idCompania);
+
+            // 4. Obtener tipo de cambio del 30 de junio
             decimal tipoCambio30Junio = await ObtenerTipoCambio30Junio(añoCalculo);
             Console.WriteLine($"Tipo de cambio 30-Jun-{añoCalculo}: {tipoCambio30Junio:N6}");
             Console.WriteLine();
 
-            // 4. Registrar inicio en log
+            // 5. Registrar inicio en log
             long idLog = await RegistrarInicioLog(idCompania, añoCalculo, loteImportacion);
             Console.WriteLine($"Log ID: {idLog}");
             Console.WriteLine($"Lote: {loteImportacion}");
@@ -219,6 +222,30 @@ public class ETLActivos
             throw new Exception($"No se encontró tipo de cambio para el 30 de junio de {añoCalculo}");
 
         return Convert.ToDecimal(result);
+    }
+
+    private async Task LimpiarProcesosColgados(int idCompania)
+    {
+        using var conn = new SqlConnection(ConnStrDestino);
+        await conn.OpenAsync();
+
+        var cmd = new SqlCommand(@"
+            UPDATE Log_Ejecucion_ETL
+            SET Estado = 'Error',
+                Fecha_Fin = GETDATE(),
+                Mensaje_Error = 'Proceso colgado - Cancelado por nueva ejecución'
+            WHERE ID_Compania = @ID_Compania
+              AND Estado = 'En Proceso'
+              AND Fecha_Inicio < DATEADD(MINUTE, -3, GETDATE())", conn);
+
+        cmd.Parameters.AddWithValue("@ID_Compania", idCompania);
+
+        int rowsAffected = await cmd.ExecuteNonQueryAsync();
+
+        if (rowsAffected > 0)
+        {
+            Console.WriteLine($"[CLEANUP] {rowsAffected} proceso(s) colgado(s) marcado(s) como Error");
+        }
     }
 
     private async Task<long> RegistrarInicioLog(int idCompania, int añoCalculo, Guid loteImportacion)
@@ -418,8 +445,10 @@ public class ETLActivos
         // Transformar y copiar datos
         foreach (DataRow rowOrigen in dtOrigen.Rows)
         {
-            string manejaFiscal = rowOrigen["ManejaFiscal"].ToString() ?? "N";
-            string manejaUSGAAP = rowOrigen["ManejaUSGAAP"].ToString() ?? "N";
+            try
+            {
+                string manejaFiscal = rowOrigen["ManejaFiscal"].ToString() ?? "N";
+                string manejaUSGAAP = rowOrigen["ManejaUSGAAP"].ToString() ?? "N";
 
             // ERROR DE DEDO: Si ambos están activos, omitir
             if (manejaFiscal == "S" && manejaUSGAAP == "S")
@@ -515,7 +544,28 @@ public class ETLActivos
             rowStaging["Año_Calculo"] = añoCalculo;
             rowStaging["Lote_Importacion"] = loteImportacion;
 
-            dtStaging.Rows.Add(rowStaging);
+                dtStaging.Rows.Add(rowStaging);
+            }
+            catch (Exception ex)
+            {
+                string folio = rowOrigen.Table.Columns.Contains("ID_NUM_ACTIVO") ?
+                    rowOrigen["ID_NUM_ACTIVO"].ToString() : "DESCONOCIDO";
+
+                Console.WriteLine($"❌ ERROR procesando activo {folio}");
+                Console.WriteLine($"   Mensaje: {ex.Message}");
+
+                // Mostrar columnas disponibles
+                if (ex.Message.Contains("does not belong to table"))
+                {
+                    Console.WriteLine($"   Columnas disponibles en Query ETL:");
+                    foreach (DataColumn col in dtOrigen.Columns)
+                    {
+                        Console.WriteLine($"      - {col.ColumnName}");
+                    }
+                }
+
+                throw new Exception($"Error procesando activo {folio}: {ex.Message}", ex);
+            }
         }
 
         return dtStaging;

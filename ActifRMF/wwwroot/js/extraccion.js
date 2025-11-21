@@ -17,6 +17,24 @@ async function initExtraccion() {
     if (form) {
         form.addEventListener('submit', ejecutarETL);
     }
+
+    // Event listeners para botones de selección
+    const btnSeleccionarTodas = document.getElementById('btnSeleccionarTodas');
+    const btnDeseleccionarTodas = document.getElementById('btnDeseleccionarTodas');
+
+    if (btnSeleccionarTodas) {
+        btnSeleccionarTodas.addEventListener('click', () => {
+            const checkboxes = document.querySelectorAll('#companiasChecklist input[type="checkbox"]');
+            checkboxes.forEach(cb => cb.checked = true);
+        });
+    }
+
+    if (btnDeseleccionarTodas) {
+        btnDeseleccionarTodas.addEventListener('click', () => {
+            const checkboxes = document.querySelectorAll('#companiasChecklist input[type="checkbox"]');
+            checkboxes.forEach(cb => cb.checked = false);
+        });
+    }
 }
 
 // Ejecutar inmediatamente si DOM ya está listo, o esperar al evento
@@ -454,16 +472,16 @@ function actualizarBarraProgreso(progreso) {
 async function esperarCompletado(loteImportacion) {
     return new Promise((resolve, reject) => {
         let checkCount = 0;
-        const maxChecks = 36; // 36 * 5 seg = 3 minutos máximo
+        const maxChecks = 120; // 120 * 5 seg = 10 minutos máximo
 
         const checkInterval = setInterval(async () => {
             checkCount++;
 
-            // Timeout después de 3 minutos
+            // Timeout después de 10 minutos
             if (checkCount > maxChecks) {
                 console.error(`[esperarCompletado] TIMEOUT después de ${checkCount} intentos`);
                 clearInterval(checkInterval);
-                reject(new Error('Timeout: El ETL tomó más de 3 minutos. Verifica el log del servidor.'));
+                reject(new Error('Timeout: El ETL tomó más de 10 minutos. Verifica el log del servidor.'));
                 return;
             }
 

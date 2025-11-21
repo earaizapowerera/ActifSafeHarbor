@@ -1,0 +1,220 @@
+================================================================================
+ANÁLISIS CASO 3: EDIFICIO - FOLIO 70001
+Compañía: PIEDRAS NEGRAS (12)
+Año: 2025
+Fecha Análisis: 20-nov-2025
+================================================================================
+
+DATOS BÁSICOS DEL ACTIVO
+-------------------------
+Folio:                      70001
+Compañía:                   12 (PIEDRAS NEGRAS)
+Tipo:                       Nacional
+MOI:                        $676,435.30
+Tasa Anual:                 15.00%
+Tasa Mensual:               1.25%
+Fecha Adquisición:          2006-04-01
+Fecha Inicio Depreciación:  2006-05-01
+Fecha Fin Depreciación:     2012-12-01
+Meses Uso Inicio 2025:      224 meses
+Meses Uso en 2025:          2 meses
+
+================================================================================
+PROBLEMAS IDENTIFICADOS
+================================================================================
+
+RESULTADO: FACTORES FISCALES CORRECTOS DESPUÉS DE EJECUTAR SP
+----------------------------------------------------------------
+✅ Factor_Actualizacion_Saldo:     1.323700  (CORRECTO para activo depreciado)
+✅ Factor_Actualizacion_Dep:       1.323700  (CORRECTO para activo depreciado)
+
+EXPLICACIÓN:
+- sp_Actualizar_INPC_Nacionales v2.4 fue ejecutado para Compañía 12 ✅
+- Para activos TOTALMENTE DEPRECIADOS hace más de 2 años, el SP usa lógica especial
+- El factor se calcula desde compra hasta FIN DE DEPRECIACIÓN, no hasta año actual
+
+VALORES INPC:
+-------------
+INPCCompra:                 60.861617  (abril 2006 - mes de compra)
+INPC_Fin_Depreciacion:      80.568243  (diciembre 2012 - cuando terminó de depreciarse)
+INPC_Mitad_Ejercicio:       140.405000 (mitad de 2025 - NO se usa para este tipo de activo)
+INPC_SH_Junio:              140.405000 (junio 2025 - usado solo para Safe Harbor)
+
+CÁLCULO CORRECTO (Activo Totalmente Depreciado):
+-------------------------------------------------
+Factor_Actualizacion = INPC_Fin_Depreciacion / INPCCompra
+                     = 80.568243 / 60.861617
+                     = 1.3237  ✅ CORRECTO
+
+NOTA IMPORTANTE:
+El factor 1.3237 es correcto porque refleja la inflación desde la compra (2006)
+hasta que terminó de depreciarse (2012). Un activo totalmente depreciado NO
+se actualiza con inflación posterior a su depreciación completa.
+
+⚠️  DISCREPANCIA: ¿FOLIO CORRECTO PARA CASO 3?
+-----------------------------------------------
+Dep_Acum_Inicio:            $676,435.30 (100% del MOI)
+Saldo_Inicio_Año:           $0.00
+Dep_Fiscal_Ejercicio:       $0.00
+
+El activo está TOTALMENTE DEPRECIADO desde dic-2012.
+
+VERIFICACIÓN MATEMÁTICA:
+------------------------
+Vida útil a 15% anual = 100 / 15 = 6.67 años = 80 meses
+
+Desde mayo-2006 hasta dic-2012 = 80 meses ✅
+El activo efectivamente debería estar totalmente depreciado.
+
+Los cálculos son correctos matemáticamente. ✅
+
+SIN EMBARGO, hay una DISCREPANCIA con la descripción del caso:
+
+Descripción en CASOS_USO_NACIONALES_2025.txt:
+"CASO 3: ACTIVO NORMAL - EDIFICIO RECIENTE (TASA 15%)"
+"Activo aún en uso (depreciándose)"
+"Debe tener saldo por deducir"
+
+Datos reales del folio 70001:
+- Activo totalmente depreciado desde 2012
+- Sin saldo por deducir ($0.00)
+- No está depreciándose en 2025
+
+❓ ACCIÓN REQUERIDA:
+  a) ¿Es el folio 70001 correcto para Caso 3?
+  b) ¿O la descripción del caso está incorrecta y debería ser "activo totalmente depreciado"?
+  c) ¿Hay otro folio que sí esté en depreciación activa?
+
+================================================================================
+VALORES ACTUALES (DESPUÉS DE CORRECCIÓN)
+================================================================================
+
+DEPRECIACIÓN
+------------
+Dep_Acum_Inicio:            $676,435.30  ✅ (100% MOI - totalmente depreciado)
+Saldo_Inicio_Año:           $0.00        ✅
+Dep_Fiscal_Ejercicio:       $0.00        ✅
+
+FACTORES FISCALES
+-----------------
+Factor_Actualizacion_Saldo: 1.323700     ✅ CORRECTO (desde compra a fin deprec)
+Factor_Actualizacion_Dep:   1.323700     ✅ CORRECTO (desde compra a fin deprec)
+
+CÁLCULO DEL FACTOR:
+Factor = INPC_Fin_Depreciacion / INPCCompra
+       = 80.568243 / 60.861617
+       = 1.3237 ✅
+
+VALORES ACTUALIZADOS FISCALES
+------------------------------
+Saldo_Actualizado:          $0.00        ✅
+Dep_Actualizada:            $0.00        ✅
+Valor_Promedio:             $0.00        ✅
+
+VALORES FINALES
+---------------
+Prueba_10_Pct_MOI:          $67,643.53   ✅ (10% × $676,435.30)
+Valor_Reportable_MXN:       $67,643.53   ✅ Aplica regla 10% MOI mínimo
+Aplica_10_Pct:              1            ✅
+
+SAFE HARBOR
+-----------
+Factor_SH:                  2.3069548086 ✅ CORRECTO (desde compra a jun-2025)
+Valor_SH_Reportable:        $67,643.53   ✅ Aplica regla 10% MOI mínimo
+
+================================================================================
+VALIDACIÓN MATEMÁTICA COMPLETA
+================================================================================
+
+✅ Dep_Acum_Inicio = MOI × Tasa_Mensual × Meses_Uso
+                   = $676,435.30 × 0.0125 × 80 meses
+                   = $676,435.30 ✅ (totalmente depreciado)
+
+✅ Factor_Fiscal = INPC_Dic2012 / INPC_Abr2006
+                 = 80.568243 / 60.861617
+                 = 1.3237 ✅
+
+✅ Factor_SH = INPC_Jun2025 / INPC_Abr2006
+             = 140.405 / 60.861617
+             = 2.3070 ✅
+
+✅ Valor_Reportable = MAX(Valor_Promedio, 10% MOI)
+                    = MAX($0.00, $67,643.53)
+                    = $67,643.53 ✅
+
+================================================================================
+COMPARACIÓN ANTES vs DESPUÉS DE EJECUTAR SP
+================================================================================
+
+Campo                           | ANTES     | DESPUÉS   | Status
+--------------------------------|-----------|-----------|--------
+Factor_Actualizacion_Saldo      | 1.0000    | 1.3237    | ✅ Corregido
+Factor_Actualizacion_Dep        | 1.0000    | 1.3237    | ✅ Corregido
+Saldo_Actualizado               | $0.00     | $0.00     | ✅ Sin cambio
+Dep_Actualizada                 | $0.00     | $0.00     | ✅ Sin cambio
+Valor_Promedio                  | $0.00     | $0.00     | ✅ Sin cambio
+Valor_Reportable_MXN            | $67,643.53| $67,643.53| ✅ Sin cambio
+Valor_SH_Reportable             | $67,643.53| $67,643.53| ✅ Sin cambio
+
+================================================================================
+ACCIONES COMPLETADAS
+================================================================================
+
+✅ 1. Ejecutar sp_Actualizar_INPC_Nacionales para Compañía 12 (PIEDRAS NEGRAS)
+   - COMPLETADO: 8 activos procesados exitosamente
+   - Factores corregidos de 1.0 a 1.3237 ✅
+   - 3 activos tipo "AñosAnteriores"
+   - 5 activos tipo "DepreciadoMesFin" (incluye folio 70001)
+
+✅ 2. Validación matemática completa
+   - Todos los cálculos verificados y correctos ✅
+   - Factor 1.3237 es correcto para activo totalmente depreciado
+   - Valor reportable $67,643.53 (10% MOI) es correcto ✅
+
+================================================================================
+ACCIONES PENDIENTES
+================================================================================
+
+⚠️  [ALTA PRIORIDAD] ACLARAR: ¿Es el folio correcto para "Caso 3"?
+
+   Descripción del caso: "Edificio Reciente depreciándose con saldo por deducir"
+   Datos reales:         Activo totalmente depreciado desde 2012, sin saldo
+
+   Opciones:
+   a) Cambiar descripción del caso a "Activo totalmente depreciado"
+   b) Cambiar el folio del Caso 3 a un activo que SÍ esté depreciándose
+   c) Usar este como caso adicional de activo totalmente depreciado
+
+[ ] Verificar Query ETL de Compañía 12
+   - ¿Trae Dep_Acum_Inicio desde origen o calcula automáticamente?
+   - Si trae desde origen, aplicar mismo fix que Compañía 188 (cambiar a NULL)
+   - Nota: Los valores actuales son correctos, pero verificar consistencia
+
+[ ] Decidir si agregar folio 70001 a tabla AutoTest
+   - Si se confirma que es el caso correcto (o un caso válido)
+   - Podría ser "Caso 3: Activo totalmente depreciado con factor especial"
+
+================================================================================
+STATUS ACTUAL DEL CASO
+================================================================================
+
+✅ CÁLCULOS CORRECTOS (después de ejecutar SP)
+   - Factores fiscales: 1.3237 ✅
+   - Depreciación acumulada: $676,435.30 (100% MOI) ✅
+   - Valor reportable: $67,643.53 (10% MOI mínimo) ✅
+   - Safe Harbor: $67,643.53 ✅
+
+⚠️  DISCREPANCIA CON DESCRIPCIÓN DEL CASO
+   - Necesita aclaración con usuario sobre folio correcto
+
+================================================================================
+PRÓXIMOS PASOS RECOMENDADOS
+================================================================================
+
+1. ✅ COMPLETADO: Ejecutar sp_Actualizar_INPC_Nacionales para Compañía 12
+2. ❓ PENDIENTE: Consultar con usuario sobre discrepancia descripción/datos
+3. [ ] Verificar query ETL de Compañía 12 (mismo fix que Compañía 188?)
+4. [ ] Una vez aclarado, agregar a tabla AutoTest si corresponde
+5. [ ] Continuar con revisión de Casos 4, 5, 6, 7
+
+================================================================================
