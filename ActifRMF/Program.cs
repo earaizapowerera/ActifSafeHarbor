@@ -17,7 +17,10 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
-app.UseHttpsRedirection();
+// Comentado para ambientes de red interna sin SSL
+// Descomentar si se configura certificado HTTPS en IIS
+// app.UseHttpsRedirection();
+
 app.UseDefaultFiles();
 app.UseStaticFiles();
 
