@@ -21,6 +21,15 @@ if (app.Environment.IsDevelopment())
 // Descomentar si se configura certificado HTTPS en IIS
 // app.UseHttpsRedirection();
 
+// Deshabilitar cache para archivos estáticos (HTML, CSS, JS)
+app.Use(async (context, next) =>
+{
+    context.Response.Headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0";
+    context.Response.Headers["Pragma"] = "no-cache";
+    context.Response.Headers["Expires"] = "-1";
+    await next();
+});
+
 app.UseDefaultFiles();
 app.UseStaticFiles();
 
