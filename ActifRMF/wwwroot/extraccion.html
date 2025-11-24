@@ -1,6 +1,23 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
+    <script>
+    // Detectar y configurar base path automáticamente para subdirectorios
+    (function() {
+        var pathname = window.location.pathname;
+        var pathParts = pathname.split('/').filter(function(p) { return p; });
+        var basePath = '/';
+        if (pathParts.length > 1 || (pathParts.length === 1 && !pathname.endsWith('.html'))) {
+            if (pathParts[pathParts.length - 1].endsWith('.html')) {
+                pathParts.pop();
+            }
+            basePath = '/' + pathParts.join('/') + '/';
+        }
+        var base = document.createElement('base');
+        base.href = basePath;
+        document.head.appendChild(base);
+    })();
+    </script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate, max-age=0">
